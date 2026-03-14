@@ -14,6 +14,7 @@ CLASS zcl_da_variants DEFINITION
     TYPES ty_tabname     TYPE c LENGTH 16.
     TYPES ty_counter     TYPE n LENGTH 5.
 
+
     METHODS constructor
       IMPORTING
         !im_tabname TYPE ty_tabname OPTIONAL .
