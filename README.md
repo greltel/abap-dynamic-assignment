@@ -44,30 +44,43 @@ The repository was created by [George Drakos](https://www.linkedin.com/in/george
 
 ## Usage
 
-### In your Adobe / Smartform Driver Program / Print Program
+### In your ABAP Programs / Classes / APIs
 
-1.  Define a structure for your labels/texts in the form Global Definitions or the Driver Program.
-2.  Populate it with default values (optional).
-3.  Call the translator **before** calling the form Function Module(for smartforms).
+1.  Define variables or inline declarations for your target data types (Single Value, Range, or Table).
+2.  Instantiate the framework class `ZCL_DA_VARIANTS`.
+3.  Call the `get_variant` method to dynamically build your parameters.
+4.  Use the generated ranges or values directly in your business logic or OpenSQL statements.
 
 ```abap
-DATA: BEGIN OF gs_labels,
-        title        TYPE string,
-        footer_note  TYPE string,
-        customer_lbl TYPE string,
-      END OF gs_labels.
+" 1. Define your target variables
+DATA lv_matnr TYPE matnr.
+DATA lr_matnr TYPE RANGE OF matnr.
+DATA lt_matnr TYPE STANDARD TABLE OF matnr.
 
-" 1.Initialize (Optional defaults)
-gs_labels-title = 'Invoice'.
+" 2. Instantiate the framework (Reads from ZDA_VARIANTS by default)
+DATA(lo_variants) = NEW zcl_da_variants( ).
 
-" 2.Translate dynamically based on Language and DB Configuration
-NEW zcl_form_translation( )->translate_form(
-  EXPORTING
-    iv_formname      = 'ZINVOICE_FORM'   " Key in ZABAP_FORM_TRANS
-    iv_langu         = p_langu           " e.g., NAST-SPRAS
-  CHANGING
-    cs_form_elements = gs_labels ).         " The structure to be translated
+TRY.
+    " 3. Fetch parameter values and build RTTS ranges dynamically
+    lo_variants->get_variant(
+      EXPORTING
+        im_parameterid  = 'VALID_MATERIALS'
+        im_progname     = 'GLOBAL'          " Optional: Specific program or 'GLOBAL'
+      IMPORTING
+        ex_fieldvalue   = lv_matnr          " Gets the single value
+        ex_range        = lr_matnr          " Gets the dynamically built Range Table
+        ex_table_values = lt_matnr          " Gets a standard table of values
+    ).
 
-" 3. The gs_labels structure now contains the translated texts from ZDB_FORM_TRANS
-"    Pass this structure to your Smartform / Adobe Form interface.
+    " 4. Use the generated range directly in your queries!
+    SELECT FROM mara
+      FIELDS *
+      WHERE matnr IN @lr_matnr 
+         OR matnr EQ @lv_matnr
+      INTO TABLE @DATA(lt_mara).
+
+  CATCH zcx_da_variants INTO DATA(lx_error).
+    " Gracefully handle missing parameters or invalid Data Elements
+    out->write( lx_error->get_text( ) ).
+ENDTRY.
 
