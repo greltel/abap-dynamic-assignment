@@ -11,7 +11,7 @@ CLASS ltc_da_variants DEFINITION FOR TESTING RISK LEVEL HARMLESS DURATION SHORT.
     METHODS setup.
     METHODS teardown.
 
-    METHODS set_and_get_single_value FOR TESTING.
+    METHODS set_and_get_full_variant FOR TESTING.
     METHODS get_missing_parameter    FOR TESTING.
     METHODS set_invalid_data_element FOR TESTING.
 ENDCLASS.
@@ -34,30 +34,60 @@ CLASS ltc_da_variants IMPLEMENTATION.
   METHOD teardown.
   ENDMETHOD.
 
-  METHOD set_and_get_single_value.
+  METHOD set_and_get_full_variant.
     TRY.
         mo_cut->set_variant(
-          im_parameterid = 'UNIT_TEST_PARAM'
+          im_parameterid = 'UNIT_TEST_RANGE'
           im_progname    = 'TEST_PROG'
-          im_fieldvalue  = 'HELLO_WORLD'
+          im_sign        = 'I'
+          im_opt         = 'BT'
+          im_fieldvalue  = '1000'
+          im_high_value  = '2000'
+          im_is_active   = abap_true
           im_commit      = abap_false
         ).
 
-        DATA lv_value TYPE zcl_da_variants=>ty_value.
-        DATA lv_mapping_value TYPE zcl_da_variants=>ty_value.
+        DATA lv_value        TYPE zcl_da_variants=>ty_value.
+        DATA lt_range_table  TYPE RANGE OF zcl_da_variants=>ty_value.
+        DATA lt_table_values TYPE STANDARD TABLE OF zcl_da_variants=>ty_value.
+
         mo_cut->get_variant(
           EXPORTING
-            im_parameterid = 'UNIT_TEST_PARAM'
-            im_progname    = 'TEST_PROG'
+            im_parameterid  = 'UNIT_TEST_RANGE'
+            im_progname     = 'TEST_PROG'
           IMPORTING
-            ex_fieldvalue         = lv_value
-            ex_mapping_fieldvalue = lv_mapping_value
+            ex_fieldvalue   = lv_value
+            ex_range        = lt_range_table
+            ex_table_values = lt_table_values
         ).
 
         cl_abap_unit_assert=>assert_equals(
-          exp = 'HELLO_WORLD'
+          exp = '1000'
           act = lv_value
-          msg = 'The read value does not match the written value!' ).
+          msg = 'Single Value (LOW) is incorrect!' ).
+
+        cl_abap_unit_assert=>assert_not_initial(
+          act = lt_range_table
+          msg = 'Range table should not be empty!' ).
+
+        cl_abap_unit_assert=>assert_equals(
+          exp = 1
+          act = lines( lt_range_table )
+          msg = 'Range table should contain exactly 1 row!' ).
+
+        READ TABLE lt_range_table INTO DATA(ls_range) INDEX 1.
+
+        ASSIGN COMPONENT 'LOW' OF STRUCTURE ls_range TO FIELD-SYMBOL(<low>).
+        cl_abap_unit_assert=>assert_equals( exp = '1000' act = <low> msg = 'Range LOW is incorrect!' ).
+
+        ASSIGN COMPONENT 'HIGH' OF STRUCTURE ls_range TO FIELD-SYMBOL(<high>).
+        cl_abap_unit_assert=>assert_equals( exp = '2000' act = <high> msg = 'Range HIGH is incorrect!' ).
+
+        ASSIGN COMPONENT 'OPTION' OF STRUCTURE ls_range TO FIELD-SYMBOL(<opt>).
+        cl_abap_unit_assert=>assert_equals( exp = 'BT' act = <opt> msg = 'Range OPTION is incorrect!' ).
+
+        ASSIGN COMPONENT 'SIGN' OF STRUCTURE ls_range TO FIELD-SYMBOL(<sign>).
+        cl_abap_unit_assert=>assert_equals( exp = 'I' act = <sign> msg = 'Range SIGN is incorrect!' ).
 
       CATCH zcx_da_variants INTO DATA(lx_error).
         cl_abap_unit_assert=>fail( msg = lx_error->get_text( ) ).
