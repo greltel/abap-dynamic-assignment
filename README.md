@@ -9,8 +9,8 @@
 [![License](https://img.shields.io/badge/License-MIT-green)](https://github.com/greltel/abap-dynamic-assignment/blob/main/LICENSE)
 ![Version](https://img.shields.io/endpoint?url=https://shield.abappm.com/github/greltel/abap-dynamic-assignment/src/zcl_form_translation.clas.abap/c_version)
 
-A lightweight, dynamic runtime parameter framework for clean ABAP.
-It decouples configuration values from code logic, allowing functional consultants or key users to maintain variables, ranges, and mappings via a simple database table (SM30, Business Configuration, RAP Application), bypassing hardcoded values and the rigid standard TVARVC table.
+A lightweight, dynamic runtime parameter framework.
+It decouples configuration values from code logic, allowing developers,functional consultants or key users to maintain variables, ranges, and mappings via a simple database table ( `SM30`, `Business Configuration`, `RAP Application`), bypassing hardcoded values and the rigid standard TVARVC table.
 
 # Table of contents
 1. [License](#License)
