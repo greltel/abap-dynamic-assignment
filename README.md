@@ -27,15 +27,14 @@ The repository was created by [George Drakos](https://www.linkedin.com/in/george
 
 ## Key Benefits
 
-* **No more SE63:** Forget about the painful standard translation process for forms.
-* **Zero Hardcoding:** Keep your form logic clean. No more `IF sy-langu = 'D'. text = 'Kunde'. ENDIF`.
-* **Hot-Swap Texts:** Change a label description in Production without a Transport Request.
-* **Generic:** Works with **any** ABAP structure or Form interface using RTTI.
-* **Performance:** Optimized with table buffering to ensure zero impact on print times.
-* **Unit Tested:** Includes built-in ABAP Unit tests.
-* **Fiori Elements App** built entirely with the ABAP RESTful Application Programming Model (RAP) for maintaining form translations
-
-![2026-03-07 23-40-52](https://github.com/user-attachments/assets/becf5ae2-4df8-4431-baca-0b66c9ba50a2)
+* **No more TVARVC:** Forget the limitations, clutter, and rigid structure of the standard SAP TVARVC table.
+* **Zero Hardcoding:** Keep your business logic clean. No more `IF bukrs = '1000'` or hardcoded configuration IDs in your programs.
+* **Hot-Swap Parameters:** Change program behaviors, inclusion/exclusion rules (Sign I/E), and value mappings in Production without a Transport Request.
+* **RTTS:** Automatically generates Single Values, Range Tables (ready for `SELECT ... IN`), and Mapping Tables on the fly using Run Time Type Services.
+* **100% ABAP Cloud Ready:** Built with Tier 1 Cloud compatibility.
+* **Fully Decoupled:** Works seamlessly with the default `ZDA_VARIANTS` table or **any** custom configuration table you inject into the framework.
+* **Unit Tested:** Built-in ABAP Unit tests, utilizing the OSQL Test Double Framework for zero database footprint.
+* **Fiori Elements App** built entirely with the ABAP RESTful Application Programming Model (RAP) for maintaining parameter variants.
 
 ## Design Goals-Features
 
