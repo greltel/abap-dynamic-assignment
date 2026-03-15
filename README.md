@@ -7,7 +7,6 @@
 [![ABAP Version](https://img.shields.io/badge/ABAP-7.54%2B-blue )](https://abaplint.app/stats/greltel/abap-dynamic-assignment/statement_compatibility)
 [![Code Statistics](https://img.shields.io/badge/CodeStatistics-abaplint-blue)](https://abaplint.app/stats/greltel/abap-dynamic-assignment)
 [![License](https://img.shields.io/badge/License-MIT-green)](https://github.com/greltel/abap-dynamic-assignment/blob/main/LICENSE)
-![Version](https://img.shields.io/endpoint?url=https://shield.abappm.com/github/greltel/abap-dynamic-assignment/src/zcl_form_translation.clas.abap/c_version)
 
 A lightweight, dynamic runtime parameter framework.
 It decouples configuration values from code logic, allowing developers,functional consultants or key users to maintain variables, ranges, and mappings via a simple database table ( `SM30`, `Business Configuration`, `RAP Application`), bypassing hardcoded values and the rigid standard TVARVC table.
