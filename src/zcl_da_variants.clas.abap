@@ -4,12 +4,36 @@ CLASS zcl_da_variants DEFINITION
   CREATE PUBLIC .
 
   PUBLIC SECTION.
+
+    TYPES ty_base_sign TYPE c LENGTH 1.
+    TYPES ty_base_opt  TYPE c LENGTH 2.
+
+    TYPES:
+      BEGIN OF ENUM ty_sign BASE TYPE char1,
+        sign_empty   VALUE IS INITIAL,
+        sign_include VALUE 'I',
+        sign_exclude VALUE 'E',
+      END OF ENUM ty_sign.
+
+    TYPES:
+      BEGIN OF ENUM ty_opt BASE TYPE char2,
+        opt_empty VALUE IS INITIAL,
+        opt_eq    VALUE 'EQ',
+        opt_ne    VALUE 'NE',
+        opt_bt    VALUE 'BT',
+        opt_nb    VALUE 'NB',
+        opt_cp    VALUE 'CP',
+        opt_np    VALUE 'NP',
+        opt_lt    VALUE 'LT',
+        opt_le    VALUE 'LE',
+        opt_gt    VALUE 'GT',
+        opt_ge    VALUE 'GE',
+      END OF ENUM ty_opt.
+
     TYPES ty_progname    TYPE c LENGTH 40.
     TYPES ty_parameterid TYPE c LENGTH 40.
     TYPES ty_value       TYPE c LENGTH 255.
     TYPES ty_data_el     TYPE c LENGTH 30.
-    TYPES ty_sign        TYPE c LENGTH 1.
-    TYPES ty_opt         TYPE c LENGTH 2.
     TYPES ty_description TYPE c LENGTH 80.
     TYPES ty_tabname     TYPE c LENGTH 16.
     TYPES ty_counter     TYPE n LENGTH 5.
@@ -44,12 +68,11 @@ CLASS zcl_da_variants DEFINITION
 
   PROTECTED SECTION.
   PRIVATE SECTION.
-    CONSTANTS mc_range_sign      TYPE string     VALUE 'SIGN'   ##NO_TEXT.
-    CONSTANTS mc_range_option    TYPE string     VALUE 'OPTION' ##NO_TEXT.
-    CONSTANTS mc_range_low       TYPE string     VALUE 'LOW'    ##NO_TEXT.
-    CONSTANTS mc_range_high      TYPE string     VALUE 'HIGH'   ##NO_TEXT.
-    CONSTANTS mc_sign_include    TYPE tvarv_sign VALUE 'I'  ##NO_TEXT.
-    CONSTANTS mc_option_equal    TYPE char02     VALUE 'EQ' ##NO_TEXT.
+
+    CONSTANTS mc_range_sign      TYPE ty_value     VALUE 'SIGN'   ##NO_TEXT.
+    CONSTANTS mc_range_option    TYPE ty_value     VALUE 'OPTION' ##NO_TEXT.
+    CONSTANTS mc_range_low       TYPE ty_value     VALUE 'LOW'    ##NO_TEXT.
+    CONSTANTS mc_range_high      TYPE ty_value     VALUE 'HIGH'   ##NO_TEXT.
 
     TYPES:
       BEGIN OF t_variants_table,
@@ -58,8 +81,8 @@ CLASS zcl_da_variants DEFINITION
         parameterid           TYPE ty_parameterid,
         counter               TYPE n LENGTH 5,
         is_active             TYPE abap_boolean,
-        sign                  TYPE ty_sign,
-        opt                   TYPE ty_opt,
+        sign                  TYPE c LENGTH 1,
+        opt                   TYPE c LENGTH 2,
         value                 TYPE ty_value,
         high_value            TYPE ty_value,
         data_element          TYPE ty_data_el,
@@ -72,7 +95,7 @@ CLASS zcl_da_variants DEFINITION
         last_changed_at       TYPE tzntstmpl,
         local_last_changed_at TYPE tzntstmpl,
       END OF t_variants_table.
-    TYPES tt_variants TYPE STANDARD TABLE OF t_variants_table INITIAL SIZE 0 WITH EMPTY KEY.
+    TYPES tt_variants TYPE STANDARD TABLE OF t_variants_table WITH EMPTY KEY.
 
     DATA m_tabname TYPE ty_tabname.
 
@@ -180,114 +203,153 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
 
         IF syst-subrc IS INITIAL AND lt_data IS NOT INITIAL.
 
-          ex_fieldvalue         = VALUE #( lt_data[ c_table_first_line ]-value OPTIONAL ).
-          ex_mapping_fieldvalue = VALUE #( lt_data[ c_table_first_line ]-mapping_value OPTIONAL ).
+          TRY.
+              ex_fieldvalue         = VALUE #( lt_data[ c_table_first_line ]-value OPTIONAL ).
+              ex_mapping_fieldvalue = VALUE #( lt_data[ c_table_first_line ]-mapping_value OPTIONAL ).
+            CATCH cx_sy_conversion_error INTO DATA(lo_conv_err).
+              RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-001 } { lo_conv_err->get_text( ) }| previous = lo_conv_err ).
+          ENDTRY.
 
           TRY.
+
+              DATA lo_elem_descr     TYPE REF TO cl_abap_elemdescr.
+              DATA lo_map_elem_descr TYPE REF TO cl_abap_elemdescr.
+
+              DATA(lv_first_data_el) = VALUE #( lt_data[ c_table_first_line ]-data_element OPTIONAL ).
+              DATA(lv_first_map_el)  = VALUE #( lt_data[ c_table_first_line ]-mapping_data_element OPTIONAL ).
+
+              lo_elem_descr = COND #( WHEN lv_first_data_el IS NOT INITIAL THEN
+                                      CAST #( cl_abap_elemdescr=>describe_by_name( lv_first_data_el ) )
+                                      ELSE
+                                      CAST #( cl_abap_elemdescr=>describe_by_data( VALUE #( lt_data[ c_table_first_line ]-value OPTIONAL ) ) ) ).
+
+
+              lo_map_elem_descr = COND #( WHEN lv_first_map_el IS NOT INITIAL THEN
+                                          CAST #( cl_abap_elemdescr=>describe_by_name( lv_first_map_el ) )
+                                          ELSE
+                                          CAST #( cl_abap_elemdescr=>describe_by_data( VALUE #( lt_data[ c_table_first_line ]-mapping_value OPTIONAL ) ) ) ).
+
               IF ex_range IS REQUESTED.
+
                 DATA(lo_range_tab) = cl_abap_tabledescr=>create(
                     p_line_type  = cl_abap_structdescr=>create(
                         VALUE cl_abap_structdescr=>component_table(
                             ( name = mc_range_sign   type = cl_abap_elemdescr=>get_c( p_length = c_character_length_1 ) )
                             ( name = mc_range_option type = cl_abap_elemdescr=>get_c( p_length = c_character_length_2 ) )
-                            ( name = mc_range_low    type = COND #( WHEN ( VALUE #( lt_data[ c_table_first_line ]-data_element OPTIONAL ) ) IS NOT INITIAL
-                                                                    THEN CAST #( cl_abap_elemdescr=>describe_by_name( VALUE #( lt_data[ c_table_first_line ]-data_element OPTIONAL ) ) )
-                                                                    ELSE CAST #( cl_abap_elemdescr=>describe_by_data( VALUE #( lt_data[ c_table_first_line ]-value OPTIONAL ) ) ) ) )
-                            ( name = mc_range_high   type = COND #( WHEN ( VALUE #( lt_data[ c_table_first_line ]-data_element OPTIONAL ) ) IS NOT INITIAL
-                                                                    THEN CAST #( cl_abap_elemdescr=>describe_by_name( VALUE #( lt_data[ c_table_first_line ]-data_element OPTIONAL ) ) )
-                                                                    ELSE CAST #( cl_abap_elemdescr=>describe_by_data( VALUE #( lt_data[ c_table_first_line ]-value OPTIONAL ) ) ) ) ) ) )
+                            ( name = mc_range_low    type = lo_elem_descr )
+                            ( name = mc_range_high   type = lo_elem_descr ) ) )
                     p_table_kind = cl_abap_tabledescr=>tablekind_std
                     p_key_kind   = cl_abap_tabledescr=>keydefkind_default
                     p_unique     = abap_false ).
 
                 CREATE DATA lr_range_table TYPE HANDLE lo_range_tab.
                 ASSIGN lr_range_table->* TO <fs_range_table>.
+
               ENDIF.
 
               IF ex_table_values IS REQUESTED.
+
                 DATA(lo_values_tab) = cl_abap_tabledescr=>create(
                     p_line_type  = cl_abap_structdescr=>create(
                         VALUE cl_abap_structdescr=>component_table(
-                            ( name = to_upper( me->c_value_column_name ) type = COND #( WHEN ( VALUE #( lt_data[ c_table_first_line ]-data_element OPTIONAL ) ) IS NOT INITIAL
-                                                                                        THEN CAST #( cl_abap_elemdescr=>describe_by_name( VALUE #( lt_data[ c_table_first_line ]-data_element OPTIONAL ) ) )
-                                                                                        ELSE CAST #( cl_abap_elemdescr=>describe_by_data( VALUE #( lt_data[ c_table_first_line ]-value OPTIONAL ) ) ) ) ) ) )
+                            ( name = to_upper( me->c_value_column_name ) type = lo_elem_descr ) ) )
                     p_table_kind = cl_abap_tabledescr=>tablekind_std
                     p_key_kind   = cl_abap_tabledescr=>keydefkind_default
                     p_unique     = abap_false ).
 
                 CREATE DATA lr_table_values TYPE HANDLE lo_values_tab.
                 ASSIGN lr_table_values->* TO <fs_table_values>.
+
               ENDIF.
 
               IF ex_table_mapping_values IS REQUESTED.
+
                 DATA(lo_values_mapping_tab) = cl_abap_tabledescr=>create(
                     p_line_type  = cl_abap_structdescr=>create(
                         VALUE cl_abap_structdescr=>component_table(
-                            ( name = to_upper( me->c_value_column_name )   type = COND #( WHEN ( VALUE #( lt_data[ c_table_first_line ]-data_element OPTIONAL ) ) IS NOT INITIAL
-                                                                                          THEN CAST #( cl_abap_elemdescr=>describe_by_name( VALUE #( lt_data[ c_table_first_line ]-data_element OPTIONAL ) ) )
-                                                                                          ELSE CAST #( cl_abap_elemdescr=>describe_by_data( VALUE #( lt_data[ c_table_first_line ]-value OPTIONAL ) ) ) ) )
-                            ( name = to_upper( me->c_mapping_column_name ) type = COND #( WHEN ( VALUE #( lt_data[ c_table_first_line ]-mapping_data_element OPTIONAL ) ) IS NOT INITIAL
-                                                                                          THEN CAST #( cl_abap_elemdescr=>describe_by_name( VALUE #( lt_data[ c_table_first_line ]-mapping_data_element OPTIONAL ) ) )
-                                                                                          ELSE CAST #( cl_abap_elemdescr=>describe_by_data( VALUE #( lt_data[ c_table_first_line ]-mapping_value OPTIONAL ) ) ) ) ) ) )
+                            ( name = to_upper( me->c_value_column_name )   type = lo_elem_descr )
+                            ( name = to_upper( me->c_mapping_column_name ) type = lo_map_elem_descr ) ) )
                     p_table_kind = cl_abap_tabledescr=>tablekind_std
                     p_key_kind   = cl_abap_tabledescr=>keydefkind_default
                     p_unique     = abap_false ).
 
                 CREATE DATA lr_table_mapping TYPE HANDLE lo_values_mapping_tab.
                 ASSIGN lr_table_mapping->* TO <fs_table_mapping>.
+
               ENDIF.
 
             CATCH cx_root INTO DATA(lo_rtts_exception).
-              RAISE EXCEPTION NEW zcx_da_variants( iv_text  = |RTTS Error: { lo_rtts_exception->get_text( ) }|
+              RAISE EXCEPTION NEW zcx_da_variants( iv_text  = |{ TEXT-002 } { lo_rtts_exception->get_text( ) }|
                                                    previous = lo_rtts_exception ).
           ENDTRY.
 
-          LOOP AT lt_data ASSIGNING FIELD-SYMBOL(<fs_data_line>).
+          TRY.
+              LOOP AT lt_data ASSIGNING FIELD-SYMBOL(<fs_data_line>).
 
-            IF ex_range IS REQUESTED.
-              APPEND INITIAL LINE TO <fs_range_table> ASSIGNING FIELD-SYMBOL(<fs_range_structure>).
-              ASSIGN COMPONENT me->mc_range_low OF STRUCTURE <fs_range_structure> TO FIELD-SYMBOL(<low>).
-              IF syst-subrc IS INITIAL. <low> = <fs_data_line>-value. ENDIF.
+                IF ex_range IS REQUESTED.
 
-              ASSIGN COMPONENT me->mc_range_high OF STRUCTURE <fs_range_structure> TO FIELD-SYMBOL(<high>).
-              IF syst-subrc IS INITIAL AND <fs_data_line>-high_value IS NOT INITIAL. <high> = <fs_data_line>-high_value. ENDIF.
+                  APPEND INITIAL LINE TO <fs_range_table> ASSIGNING FIELD-SYMBOL(<fs_range_structure>).
+                  ASSIGN COMPONENT me->mc_range_low OF STRUCTURE <fs_range_structure> TO FIELD-SYMBOL(<low>).
+                  IF syst-subrc IS INITIAL.
+                    <low> = <fs_data_line>-value.
+                  ENDIF.
 
-              ASSIGN COMPONENT me->mc_range_sign OF STRUCTURE <fs_range_structure> TO FIELD-SYMBOL(<sign>).
-              IF syst-subrc IS INITIAL. <sign> = COND #( WHEN <fs_data_line>-sign IS NOT INITIAL THEN <fs_data_line>-sign ELSE me->mc_sign_include ). ENDIF.
+                  ASSIGN COMPONENT me->mc_range_high OF STRUCTURE <fs_range_structure> TO FIELD-SYMBOL(<high>).
+                  IF syst-subrc IS INITIAL AND <fs_data_line>-high_value IS NOT INITIAL.
+                    <high> = <fs_data_line>-high_value.
+                  ENDIF.
 
-              ASSIGN COMPONENT me->mc_range_option OF STRUCTURE <fs_range_structure> TO FIELD-SYMBOL(<option>).
-              IF syst-subrc IS INITIAL. <option> = COND #( WHEN <fs_data_line>-opt IS NOT INITIAL THEN <fs_data_line>-opt ELSE me->mc_option_equal ). ENDIF.
-              UNASSIGN: <low>, <high>, <sign>, <option>.
-            ENDIF.
+                  ASSIGN COMPONENT me->mc_range_sign OF STRUCTURE <fs_range_structure> TO FIELD-SYMBOL(<sign>).
+                  IF syst-subrc IS INITIAL.
+                    <sign> =  <fs_data_line>-sign.
+                  ENDIF.
 
-            IF ex_table_values IS REQUESTED.
-              APPEND INITIAL LINE TO <fs_table_values> ASSIGNING FIELD-SYMBOL(<fs_values_line>).
-              IF syst-subrc IS INITIAL. <fs_values_line> = <fs_data_line>-value. ENDIF.
-            ENDIF.
+                  ASSIGN COMPONENT me->mc_range_option OF STRUCTURE <fs_range_structure> TO FIELD-SYMBOL(<option>).
+                  IF syst-subrc IS INITIAL.
+                    <option> =  <fs_data_line>-opt.
+                  ENDIF.
 
-            IF ex_table_mapping_values IS REQUESTED AND <fs_data_line>-mapping_value IS NOT INITIAL.
-              APPEND INITIAL LINE TO <fs_table_mapping> ASSIGNING FIELD-SYMBOL(<fs_mapping_line>).
-              IF syst-subrc IS INITIAL.
-                ASSIGN COMPONENT me->c_value_column_name OF STRUCTURE <fs_mapping_line> TO FIELD-SYMBOL(<fs_value>).
-                IF syst-subrc IS INITIAL. <fs_value> = <fs_data_line>-value. ENDIF.
+                  UNASSIGN: <low>, <high>, <sign>, <option>.
 
-                ASSIGN COMPONENT me->c_mapping_column_name OF STRUCTURE <fs_mapping_line> TO FIELD-SYMBOL(<fs_mapping_value>).
-                IF syst-subrc IS INITIAL. <fs_mapping_value> = <fs_data_line>-mapping_value. ENDIF.
-              ENDIF.
-            ENDIF.
+                ENDIF.
 
-          ENDLOOP.
+                IF ex_table_values IS REQUESTED.
+
+                  APPEND INITIAL LINE TO <fs_table_values> ASSIGNING FIELD-SYMBOL(<fs_values_line>).
+                  IF syst-subrc IS INITIAL.
+                    <fs_values_line> = <fs_data_line>-value.
+                  ENDIF.
+
+                ENDIF.
+
+                IF ex_table_mapping_values IS REQUESTED AND <fs_data_line>-mapping_value IS NOT INITIAL.
+
+                  APPEND INITIAL LINE TO <fs_table_mapping> ASSIGNING FIELD-SYMBOL(<fs_mapping_line>).
+                  IF syst-subrc IS INITIAL.
+                    ASSIGN COMPONENT me->c_value_column_name OF STRUCTURE <fs_mapping_line> TO FIELD-SYMBOL(<fs_value>).
+                    IF syst-subrc IS INITIAL. <fs_value> = <fs_data_line>-value. ENDIF.
+
+                    ASSIGN COMPONENT me->c_mapping_column_name OF STRUCTURE <fs_mapping_line> TO FIELD-SYMBOL(<fs_mapping_value>).
+                    IF syst-subrc IS INITIAL. <fs_mapping_value> = <fs_data_line>-mapping_value. ENDIF.
+                  ENDIF.
+
+                ENDIF.
+
+              ENDLOOP.
+            CATCH cx_sy_conversion_error INTO DATA(lo_loop_err).
+              RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-001 } { lo_loop_err->get_text( ) }| previous = lo_loop_err ).
+          ENDTRY.
 
           IF ex_range IS REQUESTED AND <fs_range_table> IS ASSIGNED. ex_range = <fs_range_table>. ENDIF.
           IF ex_table_values IS REQUESTED AND <fs_table_values> IS ASSIGNED. ex_table_values = <fs_table_values>. ENDIF.
           IF ex_table_mapping_values IS REQUESTED AND <fs_table_mapping> IS ASSIGNED. ex_table_mapping_values = REF #( <fs_table_mapping> ). ENDIF.
 
         ELSE.
-          RAISE EXCEPTION NEW zcx_da_variants( iv_text = |No Data Retrieved for Parameter ID: { im_parameterid }| ).
+          RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-003 } { im_parameterid }| ).
         ENDIF.
 
       CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(lo_sql_exception).
-        RAISE EXCEPTION NEW zcx_da_variants( iv_text  = |Database Error: { lo_sql_exception->get_text( ) }|
+        RAISE EXCEPTION NEW zcx_da_variants( iv_text  = |{ TEXT-004 } { lo_sql_exception->get_text( ) }|
                                              previous = lo_sql_exception ).
     ENDTRY.
 
@@ -302,15 +364,19 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
     DATA(lv_map_el)   = CONV ty_data_el( to_upper( COND #( WHEN im_mapping_data_element IS NOT INITIAL AND im_mapping_fieldvalue IS NOT INITIAL THEN im_mapping_data_element
                                          WHEN im_mapping_data_element IS INITIAL AND im_mapping_fieldvalue IS NOT INITIAL THEN me->c_default_data_element
                                          ELSE space ) ) ).
-    DATA(lv_sign)     = CONV ty_sign( to_upper( COND #( WHEN im_sign IS NOT INITIAL THEN im_sign ELSE me->mc_sign_include ) ) ).
-    DATA(lv_opt)      = CONV ty_opt( to_upper( COND #( WHEN im_opt IS NOT INITIAL THEN im_opt ELSE me->mc_option_equal ) ) ).
+
+    DATA(lv_enum_sign) = COND #( WHEN im_sign IS NOT INITIAL THEN im_sign ELSE sign_include ).
+    DATA(lv_enum_opt)  = COND #( WHEN im_opt  IS NOT INITIAL THEN im_opt  ELSE opt_eq ).
+
+    DATA(lv_db_sign)   = CONV ty_base_sign( lv_enum_sign ).
+    DATA(lv_db_opt)    = CONV ty_base_opt( lv_enum_opt ).
 
     IF lv_data_el IS NOT INITIAL AND me->data_element_exists( lv_data_el ) = abap_false.
-      RAISE EXCEPTION NEW zcx_da_variants( iv_text = |Invalid Data Element: { lv_data_el }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-005 } { lv_data_el }| ).
     ENDIF.
 
     IF lv_map_el IS NOT INITIAL AND me->data_element_exists( lv_map_el ) = abap_false.
-      RAISE EXCEPTION NEW zcx_da_variants( iv_text = |Invalid Mapping Data Element: { lv_map_el }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-006 } { lv_map_el }| ).
     ENDIF.
 
     DATA lv_uname TYPE string.
@@ -330,7 +396,7 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
 
     DATA(lv_desc) = COND #( WHEN im_description IS NOT INITIAL
                             THEN im_description
-                            ELSE |Entry Created at { lv_date }-{ lv_time } from user { lv_uname }| ).
+                            ELSE |{ TEXT-007 } { lv_date }-{ lv_time } { TEXT-008 } { lv_uname }| ).
 
     TRY.
         INSERT (me->m_tabname) FROM @( VALUE me->t_variants_table(
@@ -339,8 +405,8 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
                                            counter               = get_last_counter( im_parameterid = lv_paramid
                                                                                      im_progname    = lv_progname ) + 1
                                            is_active             = im_is_active
-                                           sign                  = lv_sign
-                                           opt                   = lv_opt
+                                           sign                  = lv_db_sign
+                                           opt                   = lv_db_opt
                                            value                 = im_fieldvalue
                                            high_value            = im_high_value
                                            data_element          = lv_data_el
@@ -354,7 +420,7 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
                                            local_last_changed_at = lv_ts ) ).
 
         IF syst-subrc IS NOT INITIAL.
-          RAISE EXCEPTION NEW zcx_da_variants( iv_text = |Failed to insert record for Parameter ID: { lv_paramid }| ).
+          RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-009 } { lv_paramid }| ).
         ENDIF.
 
         IF im_commit = abap_true.
@@ -362,7 +428,7 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
         ENDIF.
 
       CATCH cx_root INTO DATA(lo_exception).
-        RAISE EXCEPTION NEW zcx_da_variants( iv_text  = |Insert Error: { lo_exception->get_text( ) }|
+        RAISE EXCEPTION NEW zcx_da_variants( iv_text  = |{ TEXT-010 } { lo_exception->get_text( ) }|
                                              previous = lo_exception ).
     ENDTRY.
 

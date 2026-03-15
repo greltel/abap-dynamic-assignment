@@ -39,8 +39,8 @@ CLASS ltc_da_variants IMPLEMENTATION.
         mo_cut->set_variant(
           im_parameterid = 'UNIT_TEST_RANGE'
           im_progname    = 'TEST_PROG'
-          im_sign        = 'I'
-          im_opt         = 'BT'
+          im_sign        = zcl_da_variants=>sign_include
+          im_opt         = zcl_da_variants=>opt_bt
           im_fieldvalue  = '1000'
           im_high_value  = '2000'
           im_is_active   = abap_true
