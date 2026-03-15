@@ -52,27 +52,23 @@ The repository was created by [George Drakos](https://www.linkedin.com/in/george
 4.  Use the generated ranges or values directly in your business logic or OpenSQL statements.
 
 ```abap
-" 1. Define your target variables
 DATA lv_matnr TYPE matnr.
 DATA lr_matnr TYPE RANGE OF matnr.
 DATA lt_matnr TYPE STANDARD TABLE OF matnr.
 
-" 2. Instantiate the framework (Reads from ZDA_VARIANTS by default)
 DATA(lo_variants) = NEW zcl_da_variants( ).
 
 TRY.
-    " 3. Fetch parameter values and build RTTS ranges dynamically
     lo_variants->get_variant(
       EXPORTING
         im_parameterid  = 'VALID_MATERIALS'
-        im_progname     = 'GLOBAL'          " Optional: Specific program or 'GLOBAL'
+        im_progname     = 'GLOBAL' 
       IMPORTING
         ex_fieldvalue   = lv_matnr          " Gets the single value
         ex_range        = lr_matnr          " Gets the dynamically built Range Table
         ex_table_values = lt_matnr          " Gets a standard table of values
     ).
 
-    " 4. Use the generated range directly in your queries!
     SELECT FROM mara
       FIELDS *
       WHERE matnr IN @lr_matnr 
@@ -80,7 +76,6 @@ TRY.
       INTO TABLE @DATA(lt_mara).
 
   CATCH zcx_da_variants INTO DATA(lx_error).
-    " Gracefully handle missing parameters or invalid Data Elements
     out->write( lx_error->get_text( ) ).
 ENDTRY.
 
