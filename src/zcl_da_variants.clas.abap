@@ -10,24 +10,24 @@ CLASS zcl_da_variants DEFINITION
 
     TYPES:
       BEGIN OF ENUM ty_sign BASE TYPE char1,
-        sign_empty   VALUE IS INITIAL,
-        sign_include VALUE 'I',
-        sign_exclude VALUE 'E',
+        sign_empty   VALUE IS INITIAL ##NEEDED,
+        sign_include VALUE 'I' ##NEEDED,
+        sign_exclude VALUE 'E' ##NEEDED,
       END OF ENUM ty_sign.
 
     TYPES:
       BEGIN OF ENUM ty_opt BASE TYPE char2,
-        opt_empty VALUE IS INITIAL,
-        opt_eq    VALUE 'EQ',
-        opt_ne    VALUE 'NE',
-        opt_bt    VALUE 'BT',
-        opt_nb    VALUE 'NB',
-        opt_cp    VALUE 'CP',
-        opt_np    VALUE 'NP',
-        opt_lt    VALUE 'LT',
-        opt_le    VALUE 'LE',
-        opt_gt    VALUE 'GT',
-        opt_ge    VALUE 'GE',
+        opt_empty VALUE IS INITIAL ##NEEDED,
+        opt_eq    VALUE 'EQ' ##NEEDED,
+        opt_ne    VALUE 'NE' ##NEEDED,
+        opt_bt    VALUE 'BT' ##NEEDED,
+        opt_nb    VALUE 'NB' ##NEEDED,
+        opt_cp    VALUE 'CP' ##NEEDED,
+        opt_np    VALUE 'NP' ##NEEDED,
+        opt_lt    VALUE 'LT' ##NEEDED,
+        opt_le    VALUE 'LE' ##NEEDED,
+        opt_gt    VALUE 'GT' ##NEEDED,
+        opt_ge    VALUE 'GE' ##NEEDED,
       END OF ENUM ty_opt.
 
     TYPES ty_progname    TYPE c LENGTH 40.
