@@ -9,14 +9,14 @@ CLASS zcl_da_variants DEFINITION
     TYPES ty_base_opt  TYPE c LENGTH 2.
 
     TYPES:
-      BEGIN OF ENUM ty_sign BASE TYPE char1,
+      BEGIN OF ENUM ty_sign BASE TYPE ty_base_sign,
         sign_empty   VALUE IS INITIAL ##NEEDED,
         sign_include VALUE 'I' ##NEEDED,
         sign_exclude VALUE 'E' ##NEEDED,
       END OF ENUM ty_sign.
 
     TYPES:
-      BEGIN OF ENUM ty_opt BASE TYPE char2,
+      BEGIN OF ENUM ty_opt BASE TYPE ty_base_opt,
         opt_empty VALUE IS INITIAL ##NEEDED,
         opt_eq    VALUE 'EQ' ##NEEDED,
         opt_ne    VALUE 'NE' ##NEEDED,
@@ -130,7 +130,7 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
 
   METHOD constructor.
     me->m_tabname = COND #(
-                            WHEN im_tabname IS NOT INITIAL AND me->database_table_exists( im_tabname ) EQ abap_true
+                            WHEN im_tabname IS NOT INITIAL AND me->database_table_exists( im_tabname )
                             THEN to_upper( im_tabname )
                             ELSE to_upper( me->c_default_logging_table )
                           ).
@@ -371,11 +371,11 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
     DATA(lv_db_sign)   = CONV ty_base_sign( lv_enum_sign ).
     DATA(lv_db_opt)    = CONV ty_base_opt( lv_enum_opt ).
 
-    IF lv_data_el IS NOT INITIAL AND me->data_element_exists( lv_data_el ) = abap_false.
+    IF lv_data_el IS NOT INITIAL AND me->data_element_exists( lv_data_el ) EQ abap_false.
       RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-005 } { lv_data_el }| ).
     ENDIF.
 
-    IF lv_map_el IS NOT INITIAL AND me->data_element_exists( lv_map_el ) = abap_false.
+    IF lv_map_el IS NOT INITIAL AND me->data_element_exists( lv_map_el ) EQ abap_false.
       RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-006 } { lv_map_el }| ).
     ENDIF.
 
