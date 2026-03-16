@@ -43,7 +43,7 @@ The repository was created by [George Drakos](https://www.linkedin.com/in/george
 
 ## Usage
 
-### In your ABAP Programs / Classes / APIs
+### Reading Variants Programmatically
 
 1.  Define variables or inline declarations for your target data types (Single Value, Range, or Table).
 2.  Instantiate the framework class `ZCL_DA_VARIANTS`.
