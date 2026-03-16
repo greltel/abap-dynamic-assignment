@@ -5,8 +5,8 @@ CLASS zcl_da_variants DEFINITION
 
   PUBLIC SECTION.
 
-    TYPES ty_base_sign TYPE c LENGTH 1.
-    TYPES ty_base_opt  TYPE c LENGTH 2.
+    TYPES ty_base_sign TYPE zde_da_sign.
+    TYPES ty_base_opt  TYPE zde_da_opt.
 
     TYPES:
       BEGIN OF ENUM ty_sign BASE TYPE ty_base_sign,

@@ -1,0 +1,49 @@
+managed implementation in class zbp_i_da_variants unique;
+strict ( 2 );
+with draft;
+
+define behavior for ZI_DA_VARIANTS alias Variants
+persistent table zda_variants
+draft table zda_variants_d
+lock master
+total etag LocalLastChangedAt
+authorization master ( global, instance )
+etag master LocalLastChangedAt
+early numbering
+{
+  create;
+  update;
+  delete;
+
+  field ( readonly ) CreatedAt, CreatedBy, LastChangedAt, LastChangedBy, LocalLastChangedAt;
+
+  field ( readonly ) Counter;
+  field ( mandatory : create, readonly : update ) Progname, Parameterid;
+
+  draft action Edit;
+  draft action Activate optimized;
+  draft action Discard;
+  draft action Resume;
+  draft determine action Prepare;
+
+  mapping for zda_variants
+    {
+      Progname           = progname;
+      Parameterid        = parameterid;
+      Counter            = counter;
+      IsActive           = is_active;
+      Sign               = sign;
+      Opt                = opt;
+      Value              = value;
+      HighValue          = high_value;
+      DataElement        = data_element;
+      MappingValue       = mapping_value;
+      MappingDataElement = mapping_data_el;
+      Description        = description;
+      CreatedBy          = created_by;
+      CreatedAt          = created_at;
+      LastChangedBy      = last_changed_by;
+      LastChangedAt      = last_changed_at;
+      LocalLastChangedAt = local_last_changed_at;
+    }
+}

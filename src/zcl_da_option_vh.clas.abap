@@ -1,0 +1,44 @@
+CLASS zcl_da_option_vh DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+
+    INTERFACES if_rap_query_provider .
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+
+CLASS zcl_da_option_vh IMPLEMENTATION.
+  METHOD if_rap_query_provider~select.
+    io_request->get_sort_elements( ).
+    io_request->get_paging( ).
+    DATA lt_values  TYPE STANDARD TABLE OF zi_da_option_vh WITH EMPTY KEY.
+    DATA lv_options TYPE zde_da_opt.
+
+    DATA(lt_domain_values) = CAST cl_abap_elemdescr( cl_abap_typedescr=>describe_by_data( lv_options ) )->get_ddic_fixed_values(
+                                                                                                           syst-langu ).
+    LOOP AT lt_domain_values ASSIGNING FIELD-SYMBOL(<fs_domain_value>).
+
+      APPEND VALUE #( options       = <fs_domain_value>-low
+                      options_descr = <fs_domain_value>-ddtext ) TO lt_values.
+
+    ENDLOOP.
+
+    DATA(ld_all_entries) = lines( lt_values ).
+    " NEW zcl_bs_demo_adjust_data( )->adjust_via_request( EXPORTING io_request = io_request
+    "                                               CHANGING  ct_data    = lt_values ).
+
+    IF io_request->is_data_requested( ).
+      io_response->set_data( lt_values ).
+    ENDIF.
+
+    IF io_request->is_total_numb_of_rec_requested( ).
+      io_response->set_total_number_of_records( CONV #( ld_all_entries ) ).
+    ENDIF.
+  ENDMETHOD.
+
+ENDCLASS.

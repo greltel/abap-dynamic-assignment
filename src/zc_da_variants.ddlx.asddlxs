@@ -1,0 +1,76 @@
+@Metadata.layer: #CORE
+@UI: {
+  headerInfo: { typeName: 'Variant',
+                typeNamePlural: 'Variants',
+                title: { type: #STANDARD, value: 'Parameterid' },
+                description: { type: #STANDARD, value: 'Description' } }
+}
+annotate view ZC_DA_VARIANTS with
+{
+  @UI.facet: [ { id:              'Variant',
+                 purpose:         #STANDARD,
+                 type:            #IDENTIFICATION_REFERENCE,
+                 label:           'Variant Details',
+                 position:        10 } ]
+
+  @EndUserText.label: 'Program Name'
+  @UI: { lineItem:       [ { position: 10 } ],
+         identification: [ { position: 10 } ],
+         selectionField: [ { position: 10 } ] }
+  Progname;
+
+  @EndUserText.label: 'Parameter ID'
+  @UI: { lineItem:       [ { position: 20 } ],
+         identification: [ { position: 20 } ],
+         selectionField: [ { position: 20 } ] }
+  Parameterid;
+
+  @EndUserText.label: 'Counter'
+  @UI: { lineItem:       [ { position: 30 } ],
+         identification: [ { position: 30 } ] }
+  Counter;
+
+  @EndUserText.label: 'Is Active'
+  @UI: { lineItem:       [ { position: 40 } ],
+         identification: [ { position: 40 } ] }
+  IsActive;
+
+  @EndUserText.label: 'Sign (I/E)'
+  @UI: { lineItem:       [ { position: 50 } ],
+         identification: [ { position: 50 } ] }
+  Sign;
+
+  @EndUserText.label: 'Option (EQ, BT, etc.)'
+  @UI: { lineItem:       [ { position: 60 } ],
+         identification: [ { position: 60 } ] }
+  Opt;
+
+  @EndUserText.label: 'Value (Low)'
+  @UI: { lineItem:       [ { position: 70 } ],
+         identification: [ { position: 70 } ] }
+  Value;
+
+  @EndUserText.label: 'Value (High)'
+  @UI: { lineItem:       [ { position: 80 } ],
+         identification: [ { position: 80 } ] }
+  HighValue;
+  
+  
+  @EndUserText.label: 'Data Element'
+  @UI: { identification: [ { position: 90 } ] }
+  DataElement;
+  
+  
+  @EndUserText.label: 'Description'
+  @UI: { lineItem:       [ { position: 100 } ],
+         identification: [ { position: 100 } ] }
+  Description;
+  @EndUserText.label: 'Mapping Value'
+  @UI: { identification: [ { position: 110 } ] }
+  MappingValue;
+
+  @EndUserText.label: 'Mapping Data Element'
+  @UI: { identification: [ { position: 120 } ] }
+  MappingDataElement;
+
+}
