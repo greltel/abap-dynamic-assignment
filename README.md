@@ -77,4 +77,42 @@ TRY.
   CATCH zcx_da_variants INTO DATA(lx_error).
     out->write( lx_error->get_text( ) ).
 ENDTRY.
+```
+
+### Creating Variants Programmatically
+
+You can also use the framework to programmatically create or update variants (e.g., for Initial Data Load scripts, Seed Data, or API integrations) using the `set_variant` method. 
+
+1.  Instantiate the framework class `ZCL_DA_VARIANTS`.
+2.  Call the `set_variant` method with your target values.
+3.  Use the provided Class Constants (ENUMs) when passing `SIGN` and `OPTION` values.
+4.  Handle the custom exception to catch any Data Element validation errors.
+
+```abap
+DATA(lo_variants) = NEW zcl_da_variants( ).
+
+TRY.
+    lo_variants->set_variant(
+      EXPORTING
+        im_parameterid  = 'DEFAULT_PLANT'
+        im_progname     = 'GLOBAL'
+        im_fieldvalue   = '1000'
+        im_description  = 'Default Plant for Operations'
+        " The framework automatically handles default SIGN (I), OPTION (EQ) and executes a COMMIT WORK.
+    ).
+
+    lo_variants->set_variant(
+      EXPORTING
+        im_parameterid  = 'FISCAL_YEARS'
+        im_progname     = 'ZFI_REPORT_001'
+        im_fieldvalue   = '2020'
+        im_high_value   = '2025'
+        im_sign         = zcl_da_variants=>sign_include 
+        im_opt          = zcl_da_variants=>opt_bt       
+        im_data_element = 'GJAHR'
+        im_description  = 'Valid Fiscal Years Range'
+    ).
+  CATCH zcx_da_variants INTO DATA(lx_error).
+    out->write( lx_error->get_text( ) ).
+ENDTRY.
 
