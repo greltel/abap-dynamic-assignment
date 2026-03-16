@@ -86,7 +86,7 @@ You can also use the framework to programmatically create or update variants (e.
 1.  Instantiate the framework class `ZCL_DA_VARIANTS`.
 2.  Call the `set_variant` method with your target values.
 3.  Use the provided Class Constants (ENUMs) when passing `SIGN` and `OPTION` values.
-4.  Handle the custom exception to catch any Data Element validation errors.
+4.  Handle the custom exception to catch any validation errors.
 
 ```abap
 DATA(lo_variants) = NEW zcl_da_variants( ).
