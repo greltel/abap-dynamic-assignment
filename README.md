@@ -94,24 +94,15 @@ DATA(lo_variants) = NEW zcl_da_variants( ).
 TRY.
     lo_variants->set_variant(
       EXPORTING
-        im_parameterid  = 'DEFAULT_PLANT'
-        im_progname     = 'GLOBAL'
+        im_parameterid  = 'DEFAULT_PLANTS'
+        im_progname     = 'ZTEST'
         im_fieldvalue   = '1000'
+        im_high_value   = '2000'
+        im_sign         = zcl_da_variants=>sign_include
+        im_opt          = zcl_da_variants=>opt_bt
         im_description  = 'Default Plant for Operations'
-    ).
-
-    lo_variants->set_variant(
-      EXPORTING
-        im_parameterid  = 'FISCAL_YEARS'
-        im_progname     = 'ZFI_REPORT_001'
-        im_fieldvalue   = '2020'
-        im_high_value   = '2025'
-        im_sign         = zcl_da_variants=>sign_include 
-        im_opt          = zcl_da_variants=>opt_bt       
-        im_data_element = 'GJAHR'
-        im_description  = 'Valid Fiscal Years Range'
     ).
   CATCH zcx_da_variants INTO DATA(lx_error).
     out->write( lx_error->get_text( ) ).
 ENDTRY.
-
+```
