@@ -98,7 +98,6 @@ TRY.
         im_progname     = 'GLOBAL'
         im_fieldvalue   = '1000'
         im_description  = 'Default Plant for Operations'
-        " The framework automatically handles default SIGN (I), OPTION (EQ) and executes a COMMIT WORK.
     ).
 
     lo_variants->set_variant(
