@@ -27,8 +27,6 @@ CLASS zcl_da_sign_vh IMPLEMENTATION.
     ENDLOOP.
 
     DATA(ld_all_entries) = lines( lt_values ).
-    " NEW zcl_bs_demo_adjust_data( )->adjust_via_request( EXPORTING io_request = io_request
-    "                                               CHANGING  ct_data    = lt_values ).
 
     IF io_request->is_data_requested( ).
       io_response->set_data( lt_values ).
