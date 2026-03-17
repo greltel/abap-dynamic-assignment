@@ -33,10 +33,8 @@ define root view entity ZC_DA_VARIANTS
       Opt,
       Value,
       HighValue,
-      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_DA_DATAELEMENT_VH', element: 'DataElement' } }]
       DataElement,
       MappingValue,
-      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_DA_DATAELEMENT_VH', element: 'DataElement' } }]
       MappingDataElement,
       Description,
       CreatedBy,
