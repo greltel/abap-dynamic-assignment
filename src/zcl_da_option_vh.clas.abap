@@ -19,24 +19,29 @@ CLASS zcl_da_option_vh IMPLEMENTATION.
     DATA lt_values  TYPE STANDARD TABLE OF zi_da_option_vh WITH EMPTY KEY.
     DATA lv_options TYPE zde_da_opt.
 
-    DATA(lt_domain_values) = CAST cl_abap_elemdescr( cl_abap_typedescr=>describe_by_data( lv_options ) )->get_ddic_fixed_values(
-                                                                                                           syst-langu ).
-    LOOP AT lt_domain_values ASSIGNING FIELD-SYMBOL(<fs_domain_value>).
+    TRY.
 
-      APPEND VALUE #( options       = <fs_domain_value>-low
-                      options_descr = <fs_domain_value>-ddtext ) TO lt_values.
+        DATA(lt_domain_values) = CAST cl_abap_elemdescr( cl_abap_typedescr=>describe_by_data( lv_options ) )->get_ddic_fixed_values(
+            cl_abap_context_info=>get_user_language_abap_format( ) ).
+        LOOP AT lt_domain_values ASSIGNING FIELD-SYMBOL(<fs_domain_value>).
 
-    ENDLOOP.
+          APPEND VALUE #( options       = <fs_domain_value>-low
+                          options_descr = <fs_domain_value>-ddtext ) TO lt_values.
 
-    DATA(ld_all_entries) = lines( lt_values ).
+        ENDLOOP.
 
-    IF io_request->is_data_requested( ).
-      io_response->set_data( lt_values ).
-    ENDIF.
+        DATA(ld_all_entries) = lines( lt_values ).
 
-    IF io_request->is_total_numb_of_rec_requested( ).
-      io_response->set_total_number_of_records( CONV #( ld_all_entries ) ).
-    ENDIF.
+        IF io_request->is_data_requested( ).
+          io_response->set_data( lt_values ).
+        ENDIF.
+
+        IF io_request->is_total_numb_of_rec_requested( ).
+          io_response->set_total_number_of_records( CONV #( ld_all_entries ) ).
+        ENDIF.
+
+      CATCH cx_abap_context_info_error.
+    ENDTRY.
   ENDMETHOD.
 
 ENDCLASS.
