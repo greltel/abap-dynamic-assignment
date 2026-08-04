@@ -1,7 +1,7 @@
 "! <p class="shorttext synchronized" lang="EN">Exception Class for Dynamic Assignment</p>
 "! Raised by {@link ZCL_DA_VARIANTS} when a variant cannot be read or written.
 "! <p>Carries a free message text so that the cause survives all the way to the
-"! caller. returns that text when it is filled,
+"! caller. The redefined get_text( ) returns that text when it is filled,
 "! and falls back to the T100 message otherwise.</p>
 CLASS zcx_da_variants DEFINITION
   PUBLIC

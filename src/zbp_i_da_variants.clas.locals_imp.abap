@@ -65,7 +65,7 @@ CLASS lhc_variants IMPLEMENTATION.
   METHOD get_global_authorizations.
 
     IF requested_authorizations-%create = if_abap_behv=>mk-on.
-      AUTHORITY-CHECK OBJECT 'ZDA_VARI'
+      AUTHORITY-CHECK OBJECT 'ZDA_VAR'
         ID 'ACTVT'    FIELD activity_create
         ID 'PROGNAME' DUMMY.
       result-%create = COND #( WHEN sy-subrc = 0
@@ -74,7 +74,7 @@ CLASS lhc_variants IMPLEMENTATION.
     ENDIF.
 
     IF requested_authorizations-%update = if_abap_behv=>mk-on.
-      AUTHORITY-CHECK OBJECT 'ZDA_VARI'
+      AUTHORITY-CHECK OBJECT 'ZDA_VAR'
         ID 'ACTVT'    FIELD activity_change
         ID 'PROGNAME' DUMMY.
       result-%update = COND #( WHEN sy-subrc = 0
@@ -83,7 +83,7 @@ CLASS lhc_variants IMPLEMENTATION.
     ENDIF.
 
     IF requested_authorizations-%delete = if_abap_behv=>mk-on.
-      AUTHORITY-CHECK OBJECT 'ZDA_VARI'
+      AUTHORITY-CHECK OBJECT 'ZDA_VAR'
         ID 'ACTVT'    FIELD activity_delete
         ID 'PROGNAME' DUMMY.
       result-%delete = COND #( WHEN sy-subrc = 0
@@ -102,14 +102,14 @@ CLASS lhc_variants IMPLEMENTATION.
 
     LOOP AT variants INTO DATA(variant).
 
-      AUTHORITY-CHECK OBJECT 'ZDA_VARI'
+      AUTHORITY-CHECK OBJECT 'ZDA_VAR'
         ID 'ACTVT'    FIELD activity_change
         ID 'PROGNAME' FIELD variant-Progname.
       DATA(change_allowed) = COND #( WHEN sy-subrc = 0
                                      THEN if_abap_behv=>auth-allowed
                                      ELSE if_abap_behv=>auth-unauthorized ).
 
-      AUTHORITY-CHECK OBJECT 'ZDA_VARI'
+      AUTHORITY-CHECK OBJECT 'ZDA_VAR'
         ID 'ACTVT'    FIELD activity_delete
         ID 'PROGNAME' FIELD variant-Progname.
       DATA(delete_allowed) = COND #( WHEN sy-subrc = 0

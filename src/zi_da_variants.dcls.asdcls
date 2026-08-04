@@ -1,0 +1,7 @@
+@EndUserText.label: 'Access Control for Variants'
+@MappingRole: true
+define role ZI_DA_VARIANTS
+{
+  grant select on ZI_DA_VARIANTS
+   where ( Progname ) = aspect pfcg_auth ( ZDA_VAR, ZDA_PROG, ACTVT = '03' );
+}

@@ -14,6 +14,26 @@
     <CLSDEFINT>ZI_DA_VARIANTS</CLSDEFINT>
     <WITH_UNIT_TESTS>X</WITH_UNIT_TESTS>
    </VSEOCLASS>
+   <TPOOL>
+    <item>
+     <ID>I</ID>
+     <KEY>001</KEY>
+     <ENTRY>High value is mandatory for option</ENTRY>
+     <LENGTH>68</LENGTH>
+    </item>
+    <item>
+     <ID>I</ID>
+     <KEY>002</KEY>
+     <ENTRY>High value is only allowed for option BT and NB, not for</ENTRY>
+     <LENGTH>112</LENGTH>
+    </item>
+    <item>
+     <ID>I</ID>
+     <KEY>003</KEY>
+     <ENTRY>Invalid data element:</ENTRY>
+     <LENGTH>42</LENGTH>
+    </item>
+   </TPOOL>
   </asx:values>
  </asx:abap>
 </abapGit>

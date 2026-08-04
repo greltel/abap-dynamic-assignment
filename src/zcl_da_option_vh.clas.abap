@@ -20,7 +20,8 @@ CLASS zcl_da_option_vh DEFINITION
     "! @parameter result                      | One entry per fixed value
     "! @raising   cx_rap_query_provider_failed | The user context could not be read
     METHODS read_fixed_values
-      RETURNING VALUE(result) TYPE ty_options.
+      RETURNING VALUE(result) TYPE ty_options
+      RAISING   cx_rap_query_provider.
 
     "! Extracts the type ahead filter of the value help dialog.
     "! @parameter request | Query request of the RAP runtime
@@ -67,7 +68,7 @@ CLASS zcl_da_option_vh IMPLEMENTATION.
                                    cl_abap_context_info=>get_user_language_abap_format( ) ).
 
       CATCH cx_abap_context_info_error INTO DATA(context_error).
-*        RAISE EXCEPTION NEW cx_rap_query_provider_failed( previous = context_error ).
+         RAISE EXCEPTION NEW zcx_da_query( previous = context_error ).
     ENDTRY.
 
     result = VALUE #( FOR fixed_value IN fixed_values

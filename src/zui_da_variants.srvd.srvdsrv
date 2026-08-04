@@ -1,6 +1,8 @@
 @EndUserText.label: 'Service Definition for Variants'
 define service ZUI_DA_VARIANTS {
-  expose ZC_DA_VARIANTS  as Variants;
-  expose ZI_DA_SIGN_VH   as SignVH;
-  expose ZI_DA_OPTION_VH as OptionVH;
+  expose ZC_DA_VARIANTS    as Variants;
+  expose ZI_DA_SIGN_VH     as SignVH;
+  expose ZI_DA_OPTION_VH   as OptionVH;
+  expose ZI_DA_PROGNAME_VH as ProgNameVH;
+  expose ZI_DA_PARAMID_VH  as ParamIdVH;
 }
