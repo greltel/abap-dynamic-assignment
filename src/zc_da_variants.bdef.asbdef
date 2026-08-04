@@ -14,4 +14,8 @@ define behavior for ZC_DA_VARIANTS alias Variants
   use action Resume;
   use action Prepare;
 
+  side effects
+  {
+    field Opt affects field HighValue;
+  }
 }

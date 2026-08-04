@@ -6,6 +6,8 @@
 
 @Search.searchable: true
 
+@ObjectModel.semanticKey: [ 'Progname', 'Parameterid', 'Counter' ]
+
 define root view entity ZC_DA_VARIANTS
   provider contract transactional_query
   as projection on ZI_DA_VARIANTS
@@ -19,7 +21,7 @@ define root view entity ZC_DA_VARIANTS
       @Consumption.valueHelpDefinition: [ { entity: { name: 'ZI_DA_PARAMID_VH', element: 'Parameterid' },
                                             additionalBinding: [ { localElement: 'Progname',
                                                                    element: 'Progname',
-                                                                   usage: #FILTER } ] } ]
+                                                                   usage: #FILTER_AND_RESULT } ] } ]
       @Search.defaultSearchElement: true
       @Search.fuzzinessThreshold: 0.8
   key Parameterid,
@@ -27,16 +29,23 @@ define root view entity ZC_DA_VARIANTS
   key Counter,
 
       IsActive,
-      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_DA_SIGN_VH', element: 'sign' } }]
+
+      @Consumption.valueHelpDefinition: [ { entity: { name: 'ZI_DA_SIGN_VH', element: 'sign' } } ]
       Sign,
-      @Consumption.valueHelpDefinition: [{ entity: { name: 'ZI_DA_OPTION_VH', element: 'options' } }]
+
+      @Consumption.valueHelpDefinition: [ { entity: { name: 'ZI_DA_OPTION_VH', element: 'options' } } ]
       Opt,
+
       Value,
       HighValue,
       DataElement,
       MappingValue,
       MappingDataElement,
+
+      @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.7
       Description,
+
       CreatedBy,
       CreatedAt,
       LastChangedBy,

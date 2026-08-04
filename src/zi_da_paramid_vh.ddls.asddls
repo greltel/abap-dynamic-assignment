@@ -2,16 +2,24 @@
 
 @EndUserText.label: 'Value Help for Parameter ID'
 
-define view entity ZI_DA_PARAMID_VH
-  as select from zda_variants
+@Metadata.ignorePropagatedAnnotations: true
 
+@ObjectModel.usageType: { serviceQuality: #C, sizeCategory: #S, dataClass: #CUSTOMIZING }
+@ObjectModel.resultSet.sizeCategory: #XS
+
+@Search.searchable: true
+
+define view entity ZI_DA_PARAMID_VH
+  as select from ZI_DA_VARIANTS
 {
       @EndUserText.label: 'Program Name'
-  key progname    as Progname,     // <-- Προσθήκη
+      @Search.defaultSearchElement: true
+  key Progname,
 
       @EndUserText.label: 'Parameter ID'
-  key parameterid as Parameterid
+      @Search.defaultSearchElement: true
+  key Parameterid
 }
-
-group by progname,
-         parameterid
+group by
+  Progname,
+  Parameterid

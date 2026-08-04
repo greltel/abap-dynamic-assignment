@@ -1,456 +1,618 @@
 CLASS zcl_da_variants DEFINITION
   PUBLIC
   FINAL
-  CREATE PUBLIC .
+  CREATE PUBLIC.
 
   PUBLIC SECTION.
 
-    TYPES ty_base_sign TYPE zde_da_sign.
-    TYPES ty_base_opt  TYPE zde_da_opt.
+    INTERFACES zif_da_variants.
 
-    TYPES:
-      BEGIN OF ENUM ty_sign BASE TYPE ty_base_sign,
-        sign_empty   VALUE IS INITIAL ##NEEDED,
-        sign_include VALUE 'I' ##NEEDED,
-        sign_exclude VALUE 'E' ##NEEDED,
-      END OF ENUM ty_sign.
+    ALIASES ty_base_sign   FOR zif_da_variants~ty_base_sign.
+    ALIASES ty_base_opt    FOR zif_da_variants~ty_base_opt.
+    ALIASES ty_sign        FOR zif_da_variants~ty_sign.
+    ALIASES ty_opt         FOR zif_da_variants~ty_opt.
+    ALIASES ty_progname    FOR zif_da_variants~ty_progname.
+    ALIASES ty_parameterid FOR zif_da_variants~ty_parameterid.
+    ALIASES ty_counter     FOR zif_da_variants~ty_counter.
+    ALIASES ty_value       FOR zif_da_variants~ty_value.
+    ALIASES ty_data_el     FOR zif_da_variants~ty_data_el.
+    ALIASES ty_description FOR zif_da_variants~ty_description.
+    ALIASES ty_tabname     FOR zif_da_variants~ty_tabname.
+    ALIASES ty_variant     FOR zif_da_variants~ty_variant.
+    ALIASES ty_variants    FOR zif_da_variants~ty_variants.
 
-    TYPES:
-      BEGIN OF ENUM ty_opt BASE TYPE ty_base_opt,
-        opt_empty VALUE IS INITIAL ##NEEDED,
-        opt_eq    VALUE 'EQ' ##NEEDED,
-        opt_ne    VALUE 'NE' ##NEEDED,
-        opt_bt    VALUE 'BT' ##NEEDED,
-        opt_nb    VALUE 'NB' ##NEEDED,
-        opt_cp    VALUE 'CP' ##NEEDED,
-        opt_np    VALUE 'NP' ##NEEDED,
-        opt_lt    VALUE 'LT' ##NEEDED,
-        opt_le    VALUE 'LE' ##NEEDED,
-        opt_gt    VALUE 'GT' ##NEEDED,
-        opt_ge    VALUE 'GE' ##NEEDED,
-      END OF ENUM ty_opt.
+    ALIASES sign_empty   FOR zif_da_variants~sign_empty.
+    ALIASES sign_include FOR zif_da_variants~sign_include.
+    ALIASES sign_exclude FOR zif_da_variants~sign_exclude.
 
-    TYPES ty_progname    TYPE c LENGTH 40.
-    TYPES ty_parameterid TYPE c LENGTH 40.
-    TYPES ty_value       TYPE c LENGTH 255.
-    TYPES ty_data_el     TYPE c LENGTH 30.
-    TYPES ty_description TYPE c LENGTH 80.
-    TYPES ty_tabname     TYPE c LENGTH 16.
-    TYPES ty_counter     TYPE n LENGTH 5.
+    ALIASES opt_empty FOR zif_da_variants~opt_empty.
+    ALIASES opt_eq    FOR zif_da_variants~opt_eq.
+    ALIASES opt_ne    FOR zif_da_variants~opt_ne.
+    ALIASES opt_bt    FOR zif_da_variants~opt_bt.
+    ALIASES opt_nb    FOR zif_da_variants~opt_nb.
+    ALIASES opt_cp    FOR zif_da_variants~opt_cp.
+    ALIASES opt_np    FOR zif_da_variants~opt_np.
+    ALIASES opt_lt    FOR zif_da_variants~opt_lt.
+    ALIASES opt_le    FOR zif_da_variants~opt_le.
+    ALIASES opt_gt    FOR zif_da_variants~opt_gt.
+    ALIASES opt_ge    FOR zif_da_variants~opt_ge.
 
+    ALIASES get_variant FOR zif_da_variants~get_variant.
+    ALIASES set_variant FOR zif_da_variants~set_variant.
+
+    "! Creates the framework on the default configuration table, or on an injected one.
+    "! <p>An injected table must be structurally identical to {@link ZDA_VARIANTS}
+    "! and must reside in one of the allowed packages.</p>
+    "!
+    "! @parameter table_name      | Configuration table, defaults to <em>ZDA_VARIANTS</em>
+    "! @parameter packages        | Package list the table must belong to
+    "! @raising   zcx_da_variants | Table is unknown or outside the allowed packages
     METHODS constructor
-      IMPORTING im_tabname TYPE ty_tabname OPTIONAL.
-
-    METHODS get_variant
-      IMPORTING im_parameterid          TYPE ty_parameterid
-                im_progname             TYPE ty_progname OPTIONAL
-      EXPORTING ex_fieldvalue           TYPE any
-                ex_mapping_fieldvalue   TYPE any
-                ex_table_values         TYPE STANDARD TABLE
-                ex_table_mapping_values TYPE REF TO data
-                ex_range                TYPE STANDARD TABLE
+      IMPORTING table_name TYPE ty_tabname OPTIONAL
+                packages   TYPE string     OPTIONAL
       RAISING   zcx_da_variants.
 
-    METHODS set_variant
-      IMPORTING im_parameterid          TYPE ty_parameterid
-                im_progname             TYPE ty_progname    OPTIONAL
-                im_fieldvalue           TYPE ty_value
-                im_high_value           TYPE ty_value       OPTIONAL
-                im_data_element         TYPE ty_data_el     OPTIONAL
-                im_mapping_fieldvalue   TYPE ty_value       OPTIONAL
-                im_mapping_data_element TYPE ty_data_el     OPTIONAL
-                im_sign                 TYPE ty_sign        OPTIONAL
-                im_opt                  TYPE ty_opt         OPTIONAL
-                im_description          TYPE ty_description OPTIONAL
-                im_is_active            TYPE abap_boolean   DEFAULT abap_true
-                im_commit               TYPE abap_boolean   DEFAULT abap_true
-      RAISING   zcx_da_variants.
-
-  PROTECTED SECTION.
   PRIVATE SECTION.
 
-    CONSTANTS mc_range_sign      TYPE ty_value     VALUE 'SIGN'   ##NO_TEXT.
-    CONSTANTS mc_range_option    TYPE ty_value     VALUE 'OPTION' ##NO_TEXT.
-    CONSTANTS mc_range_low       TYPE ty_value     VALUE 'LOW'    ##NO_TEXT.
-    CONSTANTS mc_range_high      TYPE ty_value     VALUE 'HIGH'   ##NO_TEXT.
+    TYPES ty_user          TYPE zda_variants-created_by.
+    TYPES ty_data_elements TYPE STANDARD TABLE OF ty_data_el WITH EMPTY KEY.
 
-    TYPES:
-      BEGIN OF t_variants_table,
-        mandt                 TYPE mandt,
-        progname              TYPE ty_progname,
-        parameterid           TYPE ty_parameterid,
-        counter               TYPE n LENGTH 5,
-        is_active             TYPE abap_boolean,
-        sign                  TYPE c LENGTH 1,
-        opt                   TYPE c LENGTH 2,
-        value                 TYPE ty_value,
-        high_value            TYPE ty_value,
-        data_element          TYPE ty_data_el,
-        mapping_value         TYPE ty_value,
-        mapping_data_element  TYPE ty_data_el,
-        description           TYPE ty_description,
-        created_by            TYPE c LENGTH 12,
-        created_at            TYPE tzntstmpl,
-        last_changed_by       TYPE c LENGTH 12,
-        last_changed_at       TYPE tzntstmpl,
-        local_last_changed_at TYPE tzntstmpl,
-      END OF t_variants_table.
-    TYPES tt_variants TYPE STANDARD TABLE OF t_variants_table WITH EMPTY KEY.
+    CONSTANTS default_table    TYPE ty_tabname  VALUE 'ZDA_VARIANTS'         ##NO_TEXT.
+    CONSTANTS default_packages TYPE string      VALUE 'Z_DYNAMIC_ASSIGNMENT' ##NO_TEXT.
+    CONSTANTS default_program  TYPE ty_progname VALUE 'GLOBAL'               ##NO_TEXT.
+    CONSTANTS fallback_user    TYPE ty_user     VALUE 'UNKNOWN'              ##NO_TEXT.
 
-    DATA m_tabname TYPE ty_tabname.
+    CONSTANTS component_sign   TYPE string VALUE `SIGN`          ##NO_TEXT.
+    CONSTANTS component_option TYPE string VALUE `OPTION`        ##NO_TEXT.
+    CONSTANTS component_low    TYPE string VALUE `LOW`           ##NO_TEXT.
+    CONSTANTS component_high   TYPE string VALUE `HIGH`          ##NO_TEXT.
+    CONSTANTS column_value     TYPE string VALUE `VALUE`         ##NO_TEXT.
+    CONSTANTS column_mapping   TYPE string VALUE `MAPPING_VALUE` ##NO_TEXT.
 
-    CONSTANTS c_default_program_name  TYPE ty_progname VALUE 'GLOBAL'.
-    CONSTANTS c_default_data_element  TYPE string      VALUE 'CHAR255' ##NO_TEXT.
-    CONSTANTS c_value_column_name     TYPE string      VALUE 'VALUE' ##NO_TEXT.
-    CONSTANTS c_mapping_column_name   TYPE string      VALUE 'MAPPING_VALUE' ##NO_TEXT.
-    CONSTANTS c_table_first_line      TYPE i           VALUE 1 ##NO_TEXT.
-    CONSTANTS c_character_length_1    TYPE i           VALUE 1 ##NO_TEXT.
-    CONSTANTS c_character_length_2    TYPE i           VALUE 2 ##NO_TEXT.
-    CONSTANTS c_default_logging_table TYPE ty_tabname  VALUE 'ZDA_VARIANTS' ##NO_TEXT.
+    DATA configuration_table TYPE ty_tabname.
 
+    "! Reads all active variants of one parameter, ordered by counter.
+    "! @parameter parameter_id    | Parameter to read
+    "! @parameter program_name    | Program scope
+    "! @parameter result          | Active variants, never empty
+    "! @raising   zcx_da_variants | No active variant exists, or the types are inconsistent
+    METHODS read_variants
+      IMPORTING parameter_id  TYPE ty_parameterid
+                program_name  TYPE ty_progname
+      RETURNING VALUE(result) TYPE ty_variants
+      RAISING   zcx_da_variants.
+
+    "! Rejects a parameter whose rows do not all share one data element.
+    "! @parameter variants        | Rows of one parameter
+    "! @raising   zcx_da_variants | More than one data element found
+    METHODS check_type_consistency
+      IMPORTING variants TYPE ty_variants
+      RAISING   zcx_da_variants.
+
+    "! Resolves the DDIC type of a variant column.
+    "! @parameter data_element    | Configured data element, may be initial
+    "! @parameter sample_value    | Fallback value used when no data element is configured
+    "! @parameter result          | Element description of the resolved type
+    "! @raising   zcx_da_variants | The configured data element does not exist
+    METHODS resolve_element_type
+      IMPORTING data_element  TYPE ty_data_el
+                sample_value  TYPE ty_value
+      RETURNING VALUE(result) TYPE REF TO cl_abap_elemdescr
+      RAISING   zcx_da_variants.
+
+    "! Appends one range line per variant to the caller's own range table.
+    "! @parameter variants | Active variants, ordered by counter
+    "! @parameter range    | Caller's range table, appended in place
+    METHODS fill_range
+      IMPORTING variants TYPE ty_variants
+      CHANGING  range    TYPE STANDARD TABLE.
+
+    "! Appends one value per variant to the caller's own value table.
+    "! @parameter variants | Active variants, ordered by counter
+    "! @parameter values   | Caller's value table, appended in place
+    METHODS fill_values
+      IMPORTING variants TYPE ty_variants
+      CHANGING  values   TYPE STANDARD TABLE.
+
+    "! Builds a dynamically typed table of value and mapping pairs.
+    "! @parameter variants        | Active variants, ordered by counter
+    "! @parameter result          | Reference to the generated table
+    "! @raising   zcx_da_variants | Type creation or value conversion failed
+    METHODS build_mapping_table
+      IMPORTING variants      TYPE ty_variants
+      RETURNING VALUE(result) TYPE REF TO data
+      RAISING   zcx_da_variants.
+
+    "! Returns the highest counter currently stored for one parameter.
+    "! @parameter parameter_id    | Parameter to inspect
+    "! @parameter program_name    | Program scope
+    "! @parameter result          | Highest counter, initial when nothing is stored
+    "! @raising   zcx_da_variants | The configuration table could not be read
     METHODS get_last_counter
-      IMPORTING im_parameterid    TYPE ty_parameterid
-                im_progname       TYPE ty_progname OPTIONAL
-      RETURNING VALUE(re_counter) TYPE ty_counter.
+      IMPORTING parameter_id  TYPE ty_parameterid
+                program_name  TYPE ty_progname
+      RETURNING VALUE(result) TYPE ty_counter
+      RAISING   zcx_da_variants.
 
-    METHODS database_table_exists
-      IMPORTING im_database_table TYPE ty_tabname
-      RETURNING VALUE(re_exists)  TYPE abap_bool.
+    "! Validates the parts of a variant that the database cannot enforce.
+    "! @parameter data_element         | Data element of the value, may be initial
+    "! @parameter mapping_data_element | Data element of the mapping value, may be initial
+    "! @parameter option               | Comparison operator of the range line
+    "! @parameter high_value           | Upper bound of the range line
+    "! @raising   zcx_da_variants      | A data element is unknown, or a bound is missing
+    METHODS validate_input
+      IMPORTING data_element         TYPE ty_data_el
+                mapping_data_element TYPE ty_data_el
+                option               TYPE ty_opt
+                high_value           TYPE ty_value
+      RAISING   zcx_da_variants.
 
+    "! Fills the administrative fields and the generated description.
+    "! @parameter row             | Variant row, completed in place
+    "! @raising   zcx_da_variants | The configuration table could not be read
+    METHODS stamp_admin_fields
+      CHANGING row TYPE ty_variant
+      RAISING  zcx_da_variants.
+
+    "! Returns the technical name of the current user, or a fallback.
+    "! @parameter result | User name, <em>UNKNOWN</em> when the context is unavailable
+    METHODS current_user
+      RETURNING VALUE(result) TYPE ty_user.
+
+    "! Builds the description used when the caller does not supply one.
+    "! @parameter user_name | Author of the row
+    "! @parameter result    | Generated description
+    METHODS default_description
+      IMPORTING user_name     TYPE ty_user
+      RETURNING VALUE(result) TYPE ty_description.
+
+    "! Writes one completed variant row to the configuration table.
+    "! @parameter row             | Variant row to store
+    "! @raising   zcx_da_variants | The database rejected the row
+    METHODS persist_row
+      IMPORTING row TYPE ty_variant
+      RAISING   zcx_da_variants.
+
+    "! Checks whether a name refers to an existing elementary DDIC type.
+    "! @parameter data_element | Name to check
+    "! @parameter result       | <em>abap_true</em> when the data element exists
     METHODS data_element_exists
-      IMPORTING im_data_element  TYPE ty_data_el
-      RETURNING VALUE(re_exists) TYPE abap_bool.
+      IMPORTING data_element  TYPE ty_data_el
+      RETURNING VALUE(result) TYPE abap_boolean.
 
 ENDCLASS.
 
 
 
-CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
+CLASS zcl_da_variants IMPLEMENTATION.
 
 
   METHOD constructor.
-    me->m_tabname = COND #(
-                            WHEN im_tabname IS NOT INITIAL AND me->database_table_exists( im_tabname )
-                            THEN to_upper( im_tabname )
-                            ELSE to_upper( me->c_default_logging_table )
-                          ).
+
+    DATA(requested_table) = CONV ty_tabname( to_upper(
+                                COND #( WHEN table_name IS NOT INITIAL
+                                        THEN table_name
+                                        ELSE default_table ) ) ).
+
+    DATA(allowed_packages) = COND string( WHEN packages IS NOT INITIAL
+                                          THEN packages
+                                          ELSE default_packages ).
+
+    TRY.
+        cl_abap_dyn_prg=>check_table_name_str( val      = CONV string( requested_table )
+                                               packages = allowed_packages ).
+
+      CATCH cx_abap_not_a_table cx_abap_not_in_package INTO DATA(table_error).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-011 } { requested_table }|
+                                             previous = table_error ).
+    ENDTRY.
+
+    me->configuration_table = requested_table.
+
   ENDMETHOD.
 
 
-  METHOD database_table_exists.
-    TRY.
-        cl_abap_typedescr=>describe_by_name( EXPORTING p_name          = im_database_table
-                                             EXCEPTIONS type_not_found = 1 ).
+  METHOD zif_da_variants~get_variant.
 
-        IF syst-subrc IS NOT INITIAL.
-          RETURN abap_false.
+    CLEAR: field_value, mapping_field_value, values, mapping_values, range.
+
+    DATA(parameter) = CONV ty_parameterid( to_upper( parameter_id ) ).
+    DATA(program)   = CONV ty_progname( to_upper(
+                          COND #( WHEN program_name IS NOT INITIAL
+                                  THEN program_name
+                                  ELSE default_program ) ) ).
+
+    DATA(variants)      = read_variants( parameter_id = parameter
+                                         program_name = program ).
+    DATA(first_variant) = VALUE ty_variant( variants[ 1 ] OPTIONAL ).
+
+    TRY.
+        IF field_value IS REQUESTED.
+          field_value = first_variant-value.
         ENDIF.
 
-        RETURN abap_true.
+        IF mapping_field_value IS REQUESTED.
+          mapping_field_value = first_variant-mapping_value.
+        ENDIF.
 
-      CATCH cx_root.
-        RETURN abap_false.
+      CATCH cx_sy_conversion_error INTO DATA(conversion_error).
+        RAISE EXCEPTION NEW zcx_da_variants(
+                             text     = |{ TEXT-001 } { conversion_error->get_text( ) }|
+                             previous = conversion_error ).
     ENDTRY.
+
+    IF range IS REQUESTED.
+      fill_range( EXPORTING variants = variants
+                  CHANGING  range    = range ).
+    ENDIF.
+
+    IF values IS REQUESTED.
+      fill_values( EXPORTING variants = variants
+                   CHANGING  values   = values ).
+    ENDIF.
+
+    IF mapping_values IS REQUESTED.
+      mapping_values = build_mapping_table( variants ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD zif_da_variants~set_variant.
+
+    DATA(parameter) = CONV ty_parameterid( to_upper( parameter_id ) ).
+    DATA(program)   = CONV ty_progname( to_upper(
+                          COND #( WHEN program_name IS NOT INITIAL
+                                  THEN program_name
+                                  ELSE default_program ) ) ).
+
+    DATA(element)         = CONV ty_data_el( to_upper( data_element ) ).
+    DATA(mapping_element) = CONV ty_data_el( to_upper( mapping_data_element ) ).
+
+    DATA(variant_sign)   = COND ty_sign( WHEN sign   IS NOT INITIAL THEN sign   ELSE sign_include ).
+    DATA(variant_option) = COND ty_opt(  WHEN option IS NOT INITIAL THEN option ELSE opt_eq ).
+
+    validate_input( data_element         = element
+                    mapping_data_element = mapping_element
+                    option               = variant_option
+                    high_value           = high_value ).
+
+    DATA(row) = VALUE ty_variant(
+        progname        = program
+        parameterid     = parameter
+        counter         = COND #( WHEN counter IS NOT INITIAL
+                                  THEN counter
+                                  ELSE get_last_counter( parameter_id = parameter
+                                                         program_name = program ) + 1 )
+        is_active       = is_active
+        sign            = CONV ty_base_sign( variant_sign )
+        opt             = CONV ty_base_opt( variant_option )
+        value           = field_value
+        high_value      = high_value
+        data_element    = element
+        mapping_value   = mapping_field_value
+        mapping_data_el = mapping_element
+        description     = description ).
+
+    stamp_admin_fields( CHANGING row = row ).
+
+    persist_row( row ).
+
+    IF commit = abap_true.
+      COMMIT WORK.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD read_variants.
+
+    TRY.
+        SELECT FROM (me->configuration_table)
+          FIELDS progname, parameterid, counter, is_active, sign, opt,
+                 value, high_value, data_element, mapping_value, mapping_data_el,
+                 description
+          WHERE progname    = @program_name
+            AND parameterid = @parameter_id
+            AND is_active   = @abap_true
+          ORDER BY counter
+          INTO CORRESPONDING FIELDS OF TABLE @result.
+
+      CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(sql_error).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-004 } { sql_error->get_text( ) }|
+                                             previous = sql_error ).
+    ENDTRY.
+
+    IF result IS INITIAL.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-003 } { parameter_id }| ).
+    ENDIF.
+
+    check_type_consistency( result ).
+
+  ENDMETHOD.
+
+
+  METHOD check_type_consistency.
+
+    DATA(elements) = VALUE ty_data_elements( FOR GROUPS element OF variant IN variants
+                                             GROUP BY variant-data_element
+                                             ( element ) ).
+
+    IF lines( elements ) <= 1.
+      RETURN.
+    ENDIF.
+
+    RAISE EXCEPTION NEW zcx_da_variants(
+                         text = |{ TEXT-012 } { variants[ 1 ]-parameterid }: |
+                             && concat_lines_of( table = elements sep = `, ` ) ).
+
+  ENDMETHOD.
+
+
+  METHOD resolve_element_type.
+
+    IF data_element IS INITIAL.
+      result = CAST #( cl_abap_elemdescr=>describe_by_data( sample_value ) ).
+      RETURN.
+    ENDIF.
+
+    cl_abap_typedescr=>describe_by_name( EXPORTING  p_name         = data_element
+                                         RECEIVING  p_descr_ref    = DATA(type)
+                                         EXCEPTIONS type_not_found = 1
+                                                    OTHERS         = 2 ).
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-005 } { data_element }| ).
+    ENDIF.
+
+    TRY.
+        result = CAST #( type ).
+
+      CATCH cx_sy_move_cast_error INTO DATA(cast_error).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-005 } { data_element }|
+                                             previous = cast_error ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD fill_range.
+
+    LOOP AT variants INTO DATA(variant).
+
+      APPEND INITIAL LINE TO range ASSIGNING FIELD-SYMBOL(<range_line>).
+
+      ASSIGN COMPONENT component_sign OF STRUCTURE <range_line> TO FIELD-SYMBOL(<sign>).
+      IF sy-subrc = 0.
+        <sign> = variant-sign.
+      ENDIF.
+
+      ASSIGN COMPONENT component_option OF STRUCTURE <range_line> TO FIELD-SYMBOL(<option>).
+      IF sy-subrc = 0.
+        <option> = variant-opt.
+      ENDIF.
+
+      ASSIGN COMPONENT component_low OF STRUCTURE <range_line> TO FIELD-SYMBOL(<low>).
+      IF sy-subrc = 0.
+        <low> = variant-value.
+      ENDIF.
+
+      ASSIGN COMPONENT component_high OF STRUCTURE <range_line> TO FIELD-SYMBOL(<high>).
+      IF sy-subrc = 0 AND variant-high_value IS NOT INITIAL.
+        <high> = variant-high_value.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD fill_values.
+
+    LOOP AT variants INTO DATA(variant).
+      APPEND INITIAL LINE TO values ASSIGNING FIELD-SYMBOL(<value_line>).
+      <value_line> = variant-value.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD build_mapping_table.
+
+    FIELD-SYMBOLS <mapping_table> TYPE STANDARD TABLE.
+
+    DATA(first_variant) = VALUE ty_variant( variants[ 1 ] OPTIONAL ).
+
+    DATA(value_type)   = resolve_element_type( data_element = first_variant-data_element
+                                               sample_value = first_variant-value ).
+    DATA(mapping_type) = resolve_element_type( data_element = first_variant-mapping_data_el
+                                               sample_value = first_variant-mapping_value ).
+
+    TRY.
+        DATA(table_type) = cl_abap_tabledescr=>create(
+            p_line_type  = cl_abap_structdescr=>create(
+                               VALUE cl_abap_structdescr=>component_table(
+                                   ( name = column_value   type = value_type )
+                                   ( name = column_mapping type = mapping_type ) ) )
+            p_table_kind = cl_abap_tabledescr=>tablekind_std
+            p_key_kind   = cl_abap_tabledescr=>keydefkind_default
+            p_unique     = abap_false ).
+
+        CREATE DATA result TYPE HANDLE table_type.
+
+      CATCH cx_sy_struct_creation cx_sy_table_creation cx_sy_create_data_error
+            INTO DATA(rtts_error).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-002 } { rtts_error->get_text( ) }|
+                                             previous = rtts_error ).
+    ENDTRY.
+
+    ASSIGN result->* TO <mapping_table>.
+
+    TRY.
+        LOOP AT variants INTO DATA(variant) WHERE mapping_value IS NOT INITIAL.
+
+          APPEND INITIAL LINE TO <mapping_table> ASSIGNING FIELD-SYMBOL(<mapping_line>).
+
+          ASSIGN COMPONENT column_value OF STRUCTURE <mapping_line> TO FIELD-SYMBOL(<value>).
+          IF sy-subrc = 0.
+            <value> = variant-value.
+          ENDIF.
+
+          ASSIGN COMPONENT column_mapping OF STRUCTURE <mapping_line> TO FIELD-SYMBOL(<mapping>).
+          IF sy-subrc = 0.
+            <mapping> = variant-mapping_value.
+          ENDIF.
+
+        ENDLOOP.
+
+      CATCH cx_sy_conversion_error INTO DATA(conversion_error).
+        RAISE EXCEPTION NEW zcx_da_variants(
+                             text     = |{ TEXT-001 } { conversion_error->get_text( ) }|
+                             previous = conversion_error ).
+    ENDTRY.
+
   ENDMETHOD.
 
 
   METHOD get_last_counter.
-    TRY.
-        SELECT FROM (me->m_tabname) AS a
-          FIELDS ( MAX( a~counter ) )
-          WHERE a~parameterid EQ @im_parameterid AND
-                a~progname    EQ @im_progname
-          INTO @re_counter.
-
-        IF syst-subrc IS NOT INITIAL.
-          CLEAR re_counter.
-        ENDIF.
-
-      CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax.
-        CLEAR re_counter.
-    ENDTRY.
-  ENDMETHOD.
-
-
-  METHOD get_variant.
-
-    DATA lt_data          TYPE me->tt_variants.
-    DATA lr_table_values  TYPE REF TO data.
-    DATA lr_table_mapping TYPE REF TO data.
-    DATA lr_range_table   TYPE REF TO data.
-
-    FIELD-SYMBOLS <fs_table_values>  TYPE STANDARD TABLE.
-    FIELD-SYMBOLS <fs_range_table>   TYPE STANDARD TABLE.
-    FIELD-SYMBOLS <fs_table_mapping> TYPE STANDARD TABLE.
-
-    CLEAR: ex_range,
-           ex_fieldvalue,
-           ex_mapping_fieldvalue,
-           ex_table_values,
-           ex_table_mapping_values.
-
-    DATA(lv_paramid)  = CONV ty_parameterid( to_upper( im_parameterid ) ).
-    DATA(lv_progname) = CONV ty_progname( to_upper( COND #( WHEN im_progname IS NOT INITIAL THEN im_progname ELSE c_default_program_name ) ) ).
 
     TRY.
-        SELECT FROM (me->m_tabname)
-          FIELDS *
-          WHERE progname    EQ @lv_progname
-            AND parameterid EQ @lv_paramid
-            AND is_active   EQ @abap_true
-          ORDER BY counter ASCENDING
-          INTO CORRESPONDING FIELDS OF TABLE @lt_data.
+        SELECT FROM (me->configuration_table)
+          FIELDS MAX( counter ) AS counter
+          WHERE progname    = @program_name
+            AND parameterid = @parameter_id
+          INTO @result.
 
-        IF syst-subrc IS INITIAL AND lt_data IS NOT INITIAL.
-
-          TRY.
-              ex_fieldvalue         = VALUE #( lt_data[ c_table_first_line ]-value OPTIONAL ).
-              ex_mapping_fieldvalue = VALUE #( lt_data[ c_table_first_line ]-mapping_value OPTIONAL ).
-            CATCH cx_sy_conversion_error INTO DATA(lo_conv_err).
-              RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-001 } { lo_conv_err->get_text( ) }| previous = lo_conv_err ).
-          ENDTRY.
-
-          TRY.
-
-              DATA lo_elem_descr     TYPE REF TO cl_abap_elemdescr.
-              DATA lo_map_elem_descr TYPE REF TO cl_abap_elemdescr.
-
-              DATA(lv_first_data_el) = VALUE #( lt_data[ c_table_first_line ]-data_element OPTIONAL ).
-              DATA(lv_first_map_el)  = VALUE #( lt_data[ c_table_first_line ]-mapping_data_element OPTIONAL ).
-
-              lo_elem_descr = COND #( WHEN lv_first_data_el IS NOT INITIAL THEN
-                                      CAST #( cl_abap_elemdescr=>describe_by_name( lv_first_data_el ) )
-                                      ELSE
-                                      CAST #( cl_abap_elemdescr=>describe_by_data( VALUE #( lt_data[ c_table_first_line ]-value OPTIONAL ) ) ) ).
-
-
-              lo_map_elem_descr = COND #( WHEN lv_first_map_el IS NOT INITIAL THEN
-                                          CAST #( cl_abap_elemdescr=>describe_by_name( lv_first_map_el ) )
-                                          ELSE
-                                          CAST #( cl_abap_elemdescr=>describe_by_data( VALUE #( lt_data[ c_table_first_line ]-mapping_value OPTIONAL ) ) ) ).
-
-              IF ex_range IS REQUESTED.
-
-                DATA(lo_range_tab) = cl_abap_tabledescr=>create(
-                    p_line_type  = cl_abap_structdescr=>create(
-                        VALUE cl_abap_structdescr=>component_table(
-                            ( name = mc_range_sign   type = cl_abap_elemdescr=>get_c( p_length = c_character_length_1 ) )
-                            ( name = mc_range_option type = cl_abap_elemdescr=>get_c( p_length = c_character_length_2 ) )
-                            ( name = mc_range_low    type = lo_elem_descr )
-                            ( name = mc_range_high   type = lo_elem_descr ) ) )
-                    p_table_kind = cl_abap_tabledescr=>tablekind_std
-                    p_key_kind   = cl_abap_tabledescr=>keydefkind_default
-                    p_unique     = abap_false ).
-
-                CREATE DATA lr_range_table TYPE HANDLE lo_range_tab.
-                ASSIGN lr_range_table->* TO <fs_range_table>.
-
-              ENDIF.
-
-              IF ex_table_values IS REQUESTED.
-
-                DATA(lo_values_tab) = cl_abap_tabledescr=>create(
-                    p_line_type  = cl_abap_structdescr=>create(
-                        VALUE cl_abap_structdescr=>component_table(
-                            ( name = to_upper( me->c_value_column_name ) type = lo_elem_descr ) ) )
-                    p_table_kind = cl_abap_tabledescr=>tablekind_std
-                    p_key_kind   = cl_abap_tabledescr=>keydefkind_default
-                    p_unique     = abap_false ).
-
-                CREATE DATA lr_table_values TYPE HANDLE lo_values_tab.
-                ASSIGN lr_table_values->* TO <fs_table_values>.
-
-              ENDIF.
-
-              IF ex_table_mapping_values IS REQUESTED.
-
-                DATA(lo_values_mapping_tab) = cl_abap_tabledescr=>create(
-                    p_line_type  = cl_abap_structdescr=>create(
-                        VALUE cl_abap_structdescr=>component_table(
-                            ( name = to_upper( me->c_value_column_name )   type = lo_elem_descr )
-                            ( name = to_upper( me->c_mapping_column_name ) type = lo_map_elem_descr ) ) )
-                    p_table_kind = cl_abap_tabledescr=>tablekind_std
-                    p_key_kind   = cl_abap_tabledescr=>keydefkind_default
-                    p_unique     = abap_false ).
-
-                CREATE DATA lr_table_mapping TYPE HANDLE lo_values_mapping_tab.
-                ASSIGN lr_table_mapping->* TO <fs_table_mapping>.
-
-              ENDIF.
-
-            CATCH cx_root INTO DATA(lo_rtts_exception).
-              RAISE EXCEPTION NEW zcx_da_variants( iv_text  = |{ TEXT-002 } { lo_rtts_exception->get_text( ) }|
-                                                   previous = lo_rtts_exception ).
-          ENDTRY.
-
-          TRY.
-              LOOP AT lt_data ASSIGNING FIELD-SYMBOL(<fs_data_line>).
-
-                IF ex_range IS REQUESTED.
-
-                  APPEND INITIAL LINE TO <fs_range_table> ASSIGNING FIELD-SYMBOL(<fs_range_structure>).
-                  ASSIGN COMPONENT me->mc_range_low OF STRUCTURE <fs_range_structure> TO FIELD-SYMBOL(<low>).
-                  IF syst-subrc IS INITIAL.
-                    <low> = <fs_data_line>-value.
-                  ENDIF.
-
-                  ASSIGN COMPONENT me->mc_range_high OF STRUCTURE <fs_range_structure> TO FIELD-SYMBOL(<high>).
-                  IF syst-subrc IS INITIAL AND <fs_data_line>-high_value IS NOT INITIAL.
-                    <high> = <fs_data_line>-high_value.
-                  ENDIF.
-
-                  ASSIGN COMPONENT me->mc_range_sign OF STRUCTURE <fs_range_structure> TO FIELD-SYMBOL(<sign>).
-                  IF syst-subrc IS INITIAL.
-                    <sign> =  <fs_data_line>-sign.
-                  ENDIF.
-
-                  ASSIGN COMPONENT me->mc_range_option OF STRUCTURE <fs_range_structure> TO FIELD-SYMBOL(<option>).
-                  IF syst-subrc IS INITIAL.
-                    <option> =  <fs_data_line>-opt.
-                  ENDIF.
-
-                  UNASSIGN: <low>, <high>, <sign>, <option>.
-
-                ENDIF.
-
-                IF ex_table_values IS REQUESTED.
-
-                  APPEND INITIAL LINE TO <fs_table_values> ASSIGNING FIELD-SYMBOL(<fs_values_line>).
-                  IF syst-subrc IS INITIAL.
-                    <fs_values_line> = <fs_data_line>-value.
-                  ENDIF.
-
-                ENDIF.
-
-                IF ex_table_mapping_values IS REQUESTED AND <fs_data_line>-mapping_value IS NOT INITIAL.
-
-                  APPEND INITIAL LINE TO <fs_table_mapping> ASSIGNING FIELD-SYMBOL(<fs_mapping_line>).
-                  IF syst-subrc IS INITIAL.
-                    ASSIGN COMPONENT me->c_value_column_name OF STRUCTURE <fs_mapping_line> TO FIELD-SYMBOL(<fs_value>).
-                    IF syst-subrc IS INITIAL. <fs_value> = <fs_data_line>-value. ENDIF.
-
-                    ASSIGN COMPONENT me->c_mapping_column_name OF STRUCTURE <fs_mapping_line> TO FIELD-SYMBOL(<fs_mapping_value>).
-                    IF syst-subrc IS INITIAL. <fs_mapping_value> = <fs_data_line>-mapping_value. ENDIF.
-                  ENDIF.
-
-                ENDIF.
-
-              ENDLOOP.
-            CATCH cx_sy_conversion_error INTO DATA(lo_loop_err).
-              RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-001 } { lo_loop_err->get_text( ) }| previous = lo_loop_err ).
-          ENDTRY.
-
-          IF ex_range IS REQUESTED AND <fs_range_table> IS ASSIGNED. ex_range = <fs_range_table>. ENDIF.
-          IF ex_table_values IS REQUESTED AND <fs_table_values> IS ASSIGNED. ex_table_values = <fs_table_values>. ENDIF.
-          IF ex_table_mapping_values IS REQUESTED AND <fs_table_mapping> IS ASSIGNED. ex_table_mapping_values = REF #( <fs_table_mapping> ). ENDIF.
-
-        ELSE.
-          RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-003 } { im_parameterid }| ).
-        ENDIF.
-
-      CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(lo_sql_exception).
-        RAISE EXCEPTION NEW zcx_da_variants( iv_text  = |{ TEXT-004 } { lo_sql_exception->get_text( ) }|
-                                             previous = lo_sql_exception ).
+      CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(sql_error).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-004 } { sql_error->get_text( ) }|
+                                             previous = sql_error ).
     ENDTRY.
 
   ENDMETHOD.
 
 
-  METHOD set_variant.
+  METHOD validate_input.
 
-    DATA(lv_paramid)  = CONV ty_parameterid( to_upper( im_parameterid ) ).
-    DATA(lv_progname) = CONV ty_progname( to_upper( COND #( WHEN im_progname IS NOT INITIAL THEN im_progname ELSE c_default_program_name ) ) ).
-    DATA(lv_data_el)  = CONV ty_data_el( to_upper( COND #( WHEN im_data_element IS NOT INITIAL THEN im_data_element ELSE me->c_default_data_element ) ) ).
-    DATA(lv_map_el)   = CONV ty_data_el( to_upper( COND #( WHEN im_mapping_data_element IS NOT INITIAL AND im_mapping_fieldvalue IS NOT INITIAL THEN im_mapping_data_element
-                                         WHEN im_mapping_data_element IS INITIAL AND im_mapping_fieldvalue IS NOT INITIAL THEN me->c_default_data_element
-                                         ELSE space ) ) ).
-
-    DATA(lv_enum_sign) = COND #( WHEN im_sign IS NOT INITIAL THEN im_sign ELSE sign_include ).
-    DATA(lv_enum_opt)  = COND #( WHEN im_opt  IS NOT INITIAL THEN im_opt  ELSE opt_eq ).
-
-    DATA(lv_db_sign)   = CONV ty_base_sign( lv_enum_sign ).
-    DATA(lv_db_opt)    = CONV ty_base_opt( lv_enum_opt ).
-
-    IF lv_data_el IS NOT INITIAL AND me->data_element_exists( lv_data_el ) EQ abap_false.
-      RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-005 } { lv_data_el }| ).
+    IF data_element IS NOT INITIAL AND data_element_exists( data_element ) = abap_false.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-005 } { data_element }| ).
     ENDIF.
 
-    IF lv_map_el IS NOT INITIAL AND me->data_element_exists( lv_map_el ) EQ abap_false.
-      RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-006 } { lv_map_el }| ).
+    IF mapping_data_element IS NOT INITIAL
+       AND data_element_exists( mapping_data_element ) = abap_false.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-006 } { mapping_data_element }| ).
     ENDIF.
 
-    DATA lv_uname TYPE string.
-    DATA lv_date  TYPE d.
-    DATA lv_time  TYPE t.
-    DATA lv_ts    TYPE tzntstmpl.
+    IF ( option = opt_bt OR option = opt_nb ) AND high_value IS INITIAL.
+      RAISE EXCEPTION NEW zcx_da_variants(
+                           text = |{ TEXT-013 } { CONV ty_base_opt( option ) }| ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD stamp_admin_fields.
+    DATA change_time TYPE zda_variants-created_at.
+
+    DATA(user_name) = current_user( ).
+
+    GET TIME STAMP FIELD change_time.
 
     TRY.
-        lv_uname = cl_abap_context_info=>get_user_technical_name( ).
-        lv_date  = cl_abap_context_info=>get_system_date( ).
-        lv_time  = cl_abap_context_info=>get_system_time( ).
+        " replacing a row must not rewrite its original creator
+        TYPES: BEGIN OF ty_creation_info,
+                 created_by TYPE zda_variants-created_by,
+                 created_at TYPE zda_variants-created_at,
+               END OF ty_creation_info.
+
+        DATA stored_row TYPE ty_creation_info.
+
+        SELECT SINGLE
+          FROM (me->configuration_table)
+          FIELDS created_by, created_at
+          WHERE progname    = @row-Progname
+            AND parameterid = @row-ParameterID
+            AND counter     = @row-Counter
+          INTO @stored_row.
+
+      CATCH cx_sy_dynamic_osql_semantics
+            cx_sy_dynamic_osql_syntax INTO DATA(sql_error).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-004 } { sql_error->get_text( ) }|
+                                             previous = sql_error ).
+    ENDTRY.
+
+    DATA(row_exists) = xsdbool( sy-subrc = 0 ).
+
+    row-created_by            = COND #( WHEN row_exists = abap_true
+                                        THEN stored_row-created_by
+                                        ELSE user_name ).
+    row-created_at            = COND #( WHEN row_exists = abap_true
+                                        THEN stored_row-created_at
+                                        ELSE change_time ).
+    row-last_changed_by       = user_name.
+    row-last_changed_at       = change_time.
+    row-local_last_changed_at = change_time.
+
+    IF row-description IS INITIAL.
+      row-description = default_description( user_name ).
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD current_user.
+
+    TRY.
+        result = cl_abap_context_info=>get_user_technical_name( ).
+
       CATCH cx_abap_context_info_error.
-        lv_uname = 'UNKNOWN'.
+        result = fallback_user.
     ENDTRY.
 
-    GET TIME STAMP FIELD lv_ts.
+  ENDMETHOD.
 
-    DATA(lv_desc) = COND #( WHEN im_description IS NOT INITIAL
-                            THEN im_description
-                            ELSE |{ TEXT-007 } { lv_date }-{ lv_time } { TEXT-008 } { lv_uname }| ).
+
+  METHOD default_description.
 
     TRY.
-        INSERT (me->m_tabname) FROM @( VALUE me->t_variants_table(
-                                           parameterid           = lv_paramid
-                                           progname              = lv_progname
-                                           counter               = get_last_counter( im_parameterid = lv_paramid
-                                                                                     im_progname    = lv_progname ) + 1
-                                           is_active             = im_is_active
-                                           sign                  = lv_db_sign
-                                           opt                   = lv_db_opt
-                                           value                 = im_fieldvalue
-                                           high_value            = im_high_value
-                                           data_element          = lv_data_el
-                                           mapping_value         = COND #( WHEN im_mapping_fieldvalue IS NOT INITIAL THEN im_mapping_fieldvalue ELSE space )
-                                           mapping_data_element  = lv_map_el
-                                           description           = CONV #( lv_desc ) ##OPERATOR[DESCRIPTION]
-                                           created_by            = lv_uname
-                                           created_at            = lv_ts
-                                           last_changed_by       = lv_uname
-                                           last_changed_at       = lv_ts
-                                           local_last_changed_at = lv_ts ) ).
+        DATA(current_date) = cl_abap_context_info=>get_system_date( ).
+        DATA(current_time) = cl_abap_context_info=>get_system_time( ).
 
-        IF syst-subrc IS NOT INITIAL.
-          RAISE EXCEPTION NEW zcx_da_variants( iv_text = |{ TEXT-009 } { lv_paramid }| ).
-        ENDIF.
+        result = |{ TEXT-007 } { current_date DATE = ISO } { current_time TIME = ISO } |
+              && |{ TEXT-008 } { user_name }|.
 
-        IF im_commit = abap_true.
-          COMMIT WORK.
-        ENDIF.
-
-      CATCH cx_root INTO DATA(lo_exception).
-        RAISE EXCEPTION NEW zcx_da_variants( iv_text  = |{ TEXT-010 } { lo_exception->get_text( ) }|
-                                             previous = lo_exception ).
+      CATCH cx_abap_context_info_error.
+        result = |{ TEXT-008 } { user_name }|.
     ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD persist_row.
+
+    TRY.
+        MODIFY (me->configuration_table) FROM @row.
+
+      CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(write_error).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-010 } { write_error->get_text( ) }|
+                                             previous = write_error ).
+    ENDTRY.
+
+    IF sy-subrc <> 0.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-009 } { row-parameterid }| ).
+    ENDIF.
 
   ENDMETHOD.
 
 
   METHOD data_element_exists.
-    TRY.
-        cl_abap_typedescr=>describe_by_name( EXPORTING p_name          = im_data_element
-                                             RECEIVING p_descr_ref     = DATA(lo_descr)
-                                             EXCEPTIONS type_not_found = 1  ).
 
-        IF syst-subrc IS NOT INITIAL.
-          RETURN abap_false.
-        ENDIF.
+    cl_abap_typedescr=>describe_by_name( EXPORTING  p_name         = data_element
+                                         RECEIVING  p_descr_ref    = DATA(type)
+                                         EXCEPTIONS type_not_found = 1
+                                                    OTHERS         = 2 ).
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
 
-        IF lo_descr->kind = cl_abap_typedescr=>kind_elem.
-          RETURN abap_true.
-        ENDIF.
+    result = xsdbool( type->kind = cl_abap_typedescr=>kind_elem ).
 
-      CATCH cx_root.
-        RETURN abap_false.
-    ENDTRY.
   ENDMETHOD.
+
 ENDCLASS.

@@ -5,8 +5,7 @@ with draft;
 define behavior for ZI_DA_VARIANTS alias Variants
 persistent table zda_variants
 draft table zda_variants_d
-lock master
-total etag LocalLastChangedAt
+lock master total etag LastChangedAt
 authorization master ( global, instance )
 etag master LocalLastChangedAt
 early numbering
@@ -16,15 +15,28 @@ early numbering
   delete;
 
   field ( readonly ) CreatedAt, CreatedBy, LastChangedAt, LastChangedBy, LocalLastChangedAt;
-
   field ( readonly ) Counter;
   field ( mandatory : create, readonly : update ) Progname, Parameterid;
+  field ( mandatory ) Value;
+  field ( features : instance ) HighValue;
+
+  determination setDefaults on modify { create; }
+
+  validation checkDataElements on save { create; update;
+                                         field DataElement, MappingDataElement, MappingValue; }
+
+  validation checkRangeConsistency on save { create; update;
+                                             field Sign, Opt, Value, HighValue; }
 
   draft action Edit;
   draft action Activate optimized;
   draft action Discard;
   draft action Resume;
-  draft determine action Prepare;
+  draft determine action Prepare
+  {
+    validation checkDataElements;
+    validation checkRangeConsistency;
+  }
 
   mapping for zda_variants
     {

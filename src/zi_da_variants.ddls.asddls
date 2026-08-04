@@ -1,12 +1,12 @@
 @AbapCatalog.viewEnhancementCategory: [ #NONE ]
 
-@AccessControl.authorizationCheck: #NOT_REQUIRED
+@AccessControl.authorizationCheck: #CHECK
 
 @EndUserText.label: 'Interface View for Variants'
 
 @Metadata.ignorePropagatedAnnotations: true
 
-@ObjectModel.usageType: { serviceQuality: #X, sizeCategory: #S, dataClass: #MIXED }
+@ObjectModel.usageType: { serviceQuality: #X, sizeCategory: #S, dataClass: #CUSTOMIZING }
 
 define root view entity ZI_DA_VARIANTS
   as select from zda_variants

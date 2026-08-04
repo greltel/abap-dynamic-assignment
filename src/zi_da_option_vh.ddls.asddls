@@ -1,12 +1,15 @@
-@EndUserText.label: 'City Value Help'
+@EndUserText.label: 'Value Help for Option'
 @ObjectModel.query.implementedBy: 'ABAP:ZCL_DA_OPTION_VH'
 @ObjectModel.resultSet.sizeCategory: #XS
 define custom entity ZI_DA_OPTION_VH
 {
-      @EndUserText.label: 'Options'
-      @EndUserText.quickInfo: 'Options Name'
-  key options      : zde_da_opt;
-      @EndUserText.label: 'Options Description'
-      @EndUserText.quickInfo: 'Options Description'
-      options_descr : abap.char(20);
+      @EndUserText.label: 'Option'
+      @EndUserText.quickInfo: 'Comparison operator'
+      @ObjectModel.text.element: [ 'options_descr' ]
+  key options       : zde_da_opt;
+
+      @EndUserText.label: 'Option Description'
+      @EndUserText.quickInfo: 'Description of the comparison operator'
+      @Semantics.text: true
+      options_descr : abap.char(60);
 }

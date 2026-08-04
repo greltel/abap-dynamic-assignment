@@ -1,17 +1,26 @@
 @Metadata.layer: #CORE
 @UI: {
-  headerInfo: { typeName: 'Variant',
+  headerInfo: { typeName:       'Variant',
                 typeNamePlural: 'Variants',
-                title: { type: #STANDARD, value: 'Parameterid' },
-                description: { type: #STANDARD, value: 'Description' } }
+                title:          { type: #STANDARD, value: 'Parameterid' },
+                description:    { type: #STANDARD, value: 'Description' } },
+  presentationVariant: [ { sortOrder: [ { by: 'Progname',    direction: #ASC },
+                                        { by: 'Parameterid', direction: #ASC },
+                                        { by: 'Counter',     direction: #ASC } ] } ]
 }
 annotate view ZC_DA_VARIANTS with
 {
-  @UI.facet: [ { id:              'Variant',
+  @UI.facet: [ { id:       'Variant',
+                 purpose:  #STANDARD,
+                 type:     #IDENTIFICATION_REFERENCE,
+                 label:    'Variant Details',
+                 position: 10 },
+               { id:              'Admin',
                  purpose:         #STANDARD,
-                 type:            #IDENTIFICATION_REFERENCE,
-                 label:           'Variant Details',
-                 position:        10 } ]
+                 type:            #FIELDGROUP_REFERENCE,
+                 targetQualifier: 'AdminData',
+                 label:           'Administrative Data',
+                 position:        20 } ]
 
   @EndUserText.label: 'Program Name'
   @UI: { lineItem:       [ { position: 10 } ],
@@ -32,17 +41,20 @@ annotate view ZC_DA_VARIANTS with
 
   @EndUserText.label: 'Is Active'
   @UI: { lineItem:       [ { position: 40 } ],
-         identification: [ { position: 40 } ] }
+         identification: [ { position: 40 } ],
+         selectionField: [ { position: 30 } ] }
   IsActive;
 
   @EndUserText.label: 'Sign (I/E)'
   @UI: { lineItem:       [ { position: 50 } ],
-         identification: [ { position: 50 } ] }
+         identification: [ { position: 50 } ],
+         textArrangement: #TEXT_ONLY }
   Sign;
 
   @EndUserText.label: 'Option (EQ, BT, etc.)'
   @UI: { lineItem:       [ { position: 60 } ],
-         identification: [ { position: 60 } ] }
+         identification: [ { position: 60 } ],
+         textArrangement: #TEXT_ONLY }
   Opt;
 
   @EndUserText.label: 'Value (Low)'
@@ -54,17 +66,16 @@ annotate view ZC_DA_VARIANTS with
   @UI: { lineItem:       [ { position: 80 } ],
          identification: [ { position: 80 } ] }
   HighValue;
-  
-  
+
   @EndUserText.label: 'Data Element'
   @UI: { identification: [ { position: 90 } ] }
   DataElement;
-  
-  
+
   @EndUserText.label: 'Description'
   @UI: { lineItem:       [ { position: 100 } ],
          identification: [ { position: 100 } ] }
   Description;
+
   @EndUserText.label: 'Mapping Value'
   @UI: { identification: [ { position: 110 } ] }
   MappingValue;
@@ -72,5 +83,21 @@ annotate view ZC_DA_VARIANTS with
   @EndUserText.label: 'Mapping Data Element'
   @UI: { identification: [ { position: 120 } ] }
   MappingDataElement;
+
+  @EndUserText.label: 'Created By'
+  @UI.fieldGroup: [ { qualifier: 'AdminData', position: 10 } ]
+  CreatedBy;
+
+  @EndUserText.label: 'Created At'
+  @UI.fieldGroup: [ { qualifier: 'AdminData', position: 20 } ]
+  CreatedAt;
+
+  @EndUserText.label: 'Last Changed By'
+  @UI.fieldGroup: [ { qualifier: 'AdminData', position: 30 } ]
+  LastChangedBy;
+
+  @EndUserText.label: 'Last Changed At'
+  @UI.fieldGroup: [ { qualifier: 'AdminData', position: 40 } ]
+  LastChangedAt;
 
 }
