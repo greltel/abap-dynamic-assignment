@@ -58,7 +58,7 @@ CLASS zcl_da_variants DEFINITION
     TYPES ty_data_elements TYPE STANDARD TABLE OF ty_data_el WITH EMPTY KEY.
 
     CONSTANTS default_table    TYPE ty_tabname  VALUE 'ZDA_VARIANTS'         ##NO_TEXT.
-    CONSTANTS default_packages TYPE string      VALUE 'Z_DYNAMIC_ASSIGNMENT' ##NO_TEXT.
+    CONSTANTS default_packages TYPE string      VALUE 'ZDA_DYNAMIC_ASSIGNMENT' ##NO_TEXT.
     CONSTANTS default_program  TYPE ty_progname VALUE 'GLOBAL'               ##NO_TEXT.
     CONSTANTS fallback_user    TYPE ty_user     VALUE 'UNKNOWN'              ##NO_TEXT.
 
@@ -184,7 +184,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_da_variants IMPLEMENTATION.
+CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -508,6 +508,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD stamp_admin_fields.
     DATA change_time TYPE zda_variants-created_at.
 
@@ -614,5 +615,4 @@ CLASS zcl_da_variants IMPLEMENTATION.
     result = xsdbool( type->kind = cl_abap_typedescr=>kind_elem ).
 
   ENDMETHOD.
-
 ENDCLASS.

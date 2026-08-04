@@ -64,13 +64,13 @@
     <item>
      <ID>I</ID>
      <KEY>009</KEY>
-     <ENTRY>Failed to insert record for Parameter ID:</ENTRY>
+     <ENTRY>Failed to write record for Parameter ID:</ENTRY>
      <LENGTH>82</LENGTH>
     </item>
     <item>
      <ID>I</ID>
      <KEY>010</KEY>
-     <ENTRY>Insert Error:</ENTRY>
+     <ENTRY>Write Error:</ENTRY>
      <LENGTH>23</LENGTH>
     </item>
     <item>

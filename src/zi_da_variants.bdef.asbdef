@@ -22,11 +22,13 @@ early numbering
 
   determination setDefaults on modify { create; }
 
-  validation checkDataElements on save { create; update;
-                                         field DataElement, MappingDataElement, MappingValue; }
+  validation checkDataElements on save
+  { create; update;
+    field DataElement, MappingDataElement, MappingValue; }
 
-  validation checkRangeConsistency on save { create; update;
-                                             field Sign, Opt, Value, HighValue; }
+  validation checkRangeConsistency on save
+  { create; update;
+    field Sign, Opt, Value, HighValue; }
 
   draft action Edit;
   draft action Activate optimized;

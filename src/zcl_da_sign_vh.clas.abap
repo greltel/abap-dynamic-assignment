@@ -33,7 +33,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_da_sign_vh IMPLEMENTATION.
+CLASS ZCL_DA_SIGN_VH IMPLEMENTATION.
 
 
   METHOD if_rap_query_provider~select.
@@ -79,20 +79,20 @@ CLASS zcl_da_sign_vh IMPLEMENTATION.
 
   METHOD filter_from_request.
 
-    LOOP AT request->get_filter( )->get_as_ranges( ) INTO DATA(condition)
-         WHERE name = element_sign.
+    TRY.
+        LOOP AT request->get_filter( )->get_as_ranges( ) INTO DATA(condition)
+             WHERE name = element_sign.
 
-      result = VALUE #( BASE result
-                        FOR filter_range IN condition-range
-                        ( sign   = filter_range-sign
-                          option = filter_range-option
-                          low    = filter_range-low
-                          high   = filter_range-high ) ).
+          result = VALUE #( BASE result
+                            FOR filter_range IN condition-range
+                            ( sign   = filter_range-sign
+                              option = filter_range-option
+                              low    = filter_range-low
+                              high   = filter_range-high ) ).
 
-    ENDLOOP.
+        ENDLOOP.
+      CATCH cx_rap_query_filter_no_range.
+    ENDTRY.
 
   ENDMETHOD.
-
-
 ENDCLASS.
-

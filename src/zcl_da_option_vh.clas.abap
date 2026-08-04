@@ -18,10 +18,10 @@ CLASS zcl_da_option_vh DEFINITION
 
     "! Reads the domain fixed values in the logon language of the current user.
     "! @parameter result                      | One entry per fixed value
-    "! @raising   cx_rap_query_provider_failed | The user context could not be read
+    "! @raising   zcx_da_query | The user context could not be read
     METHODS read_fixed_values
       RETURNING VALUE(result) TYPE ty_options
-      RAISING   cx_rap_query_provider.
+      RAISING   zcx_da_query.
 
     "! Extracts the type ahead filter of the value help dialog.
     "! @parameter request | Query request of the RAP runtime
@@ -29,12 +29,11 @@ CLASS zcl_da_option_vh DEFINITION
     METHODS filter_from_request
       IMPORTING request       TYPE REF TO if_rap_query_request
       RETURNING VALUE(result) TYPE ty_option_range.
-
 ENDCLASS.
 
 
 
-CLASS zcl_da_option_vh IMPLEMENTATION.
+CLASS ZCL_DA_OPTION_VH IMPLEMENTATION.
 
 
   METHOD if_rap_query_provider~select.
@@ -80,20 +79,22 @@ CLASS zcl_da_option_vh IMPLEMENTATION.
 
   METHOD filter_from_request.
 
-    LOOP AT request->get_filter( )->get_as_ranges( ) INTO DATA(condition)
-         WHERE name = element_options.
+    TRY.
 
-      result = VALUE #( BASE result
-                        FOR filter_range IN condition-range
-                        ( sign   = filter_range-sign
-                          option = filter_range-option
-                          low    = filter_range-low
-                          high   = filter_range-high ) ).
+        LOOP AT request->get_filter( )->get_as_ranges( ) INTO DATA(condition)
+             WHERE name = element_options.
 
-    ENDLOOP.
+          result = VALUE #( BASE result
+                            FOR filter_range IN condition-range
+                            ( sign   = filter_range-sign
+                              option = filter_range-option
+                              low    = filter_range-low
+                              high   = filter_range-high ) ).
+
+        ENDLOOP.
+
+      CATCH cx_rap_query_filter_no_range.
+    ENDTRY.
 
   ENDMETHOD.
-
-
 ENDCLASS.
-
