@@ -5,11 +5,9 @@ define custom entity ZI_DA_SIGN_VH
 {
       @EndUserText.label: 'Sign'
       @EndUserText.quickInfo: 'Include or exclude'
-      @ObjectModel.text.element: [ 'sign_descr' ]
   key sign       : zde_da_sign;
 
       @EndUserText.label: 'Sign Description'
       @EndUserText.quickInfo: 'Description of the sign'
-      @Semantics.text: true
       sign_descr : abap.char(60);
 }

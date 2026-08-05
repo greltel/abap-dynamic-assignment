@@ -5,7 +5,6 @@
 @Metadata.ignorePropagatedAnnotations: true
 
 @ObjectModel.usageType: { serviceQuality: #C, sizeCategory: #S, dataClass: #CUSTOMIZING }
-@ObjectModel.resultSet.sizeCategory: #XS
 
 @Search.searchable: true
 

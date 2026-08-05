@@ -20,7 +20,7 @@ CLASS zcl_da_sign_vh DEFINITION
     "! @parameter result                    | One entry per fixed value
     METHODS read_fixed_values
       RETURNING VALUE(result) TYPE ty_signs
-       RAISING   cx_rap_query_provider.
+      RAISING   cx_rap_query_provider.
 
     "! Extracts the type ahead filter of the value help dialog.
     "! @parameter request | Query request of the RAP runtime
@@ -33,10 +33,15 @@ ENDCLASS.
 
 
 
-CLASS ZCL_DA_SIGN_VH IMPLEMENTATION.
+CLASS zcl_da_sign_vh IMPLEMENTATION.
 
 
   METHOD if_rap_query_provider~select.
+
+    " the framework answers 501 unless the provider acknowledges paging and
+    " sorting, even when the result set is two rows long
+    io_request->get_paging( ).
+    io_request->get_sort_elements( ).
 
     DATA(signs)  = read_fixed_values( ).
     DATA(filter) = filter_from_request( io_request ).
@@ -67,7 +72,7 @@ CLASS ZCL_DA_SIGN_VH IMPLEMENTATION.
                                    cl_abap_context_info=>get_user_language_abap_format( ) ).
 
       CATCH cx_abap_context_info_error INTO DATA(context_error).
-             RAISE EXCEPTION NEW zcx_da_query( previous = context_error ).
+        RAISE EXCEPTION NEW zcx_da_query( previous = context_error ).
     ENDTRY.
 
     result = VALUE #( FOR fixed_value IN fixed_values

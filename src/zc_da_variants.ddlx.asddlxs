@@ -47,14 +47,12 @@ annotate view ZC_DA_VARIANTS with
 
   @EndUserText.label: 'Sign (I/E)'
   @UI: { lineItem:       [ { position: 50 } ],
-         identification: [ { position: 50 } ],
-         textArrangement: #TEXT_ONLY }
+         identification: [ { position: 50 } ] }
   Sign;
 
   @EndUserText.label: 'Option (EQ, BT, etc.)'
   @UI: { lineItem:       [ { position: 60 } ],
-         identification: [ { position: 60 } ],
-         textArrangement: #TEXT_ONLY }
+         identification: [ { position: 60 } ] }
   Opt;
 
   @EndUserText.label: 'Value (Low)'

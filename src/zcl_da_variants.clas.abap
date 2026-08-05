@@ -184,7 +184,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
+CLASS zcl_da_variants IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -236,9 +236,8 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
         ENDIF.
 
       CATCH cx_sy_conversion_error INTO DATA(conversion_error).
-        RAISE EXCEPTION NEW zcx_da_variants(
-                             text     = |{ TEXT-001 } { conversion_error->get_text( ) }|
-                             previous = conversion_error ).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-001 } { conversion_error->get_text( ) }|
+                                             previous = conversion_error ).
     ENDTRY.
 
     IF range IS REQUESTED.
@@ -342,9 +341,8 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    RAISE EXCEPTION NEW zcx_da_variants(
-                         text = |{ TEXT-012 } { variants[ 1 ]-parameterid }: |
-                             && concat_lines_of( table = elements sep = `, ` ) ).
+    RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-012 } { variants[ 1 ]-parameterid }: |
+                                                && concat_lines_of( table = elements sep = `, ` ) ).
 
   ENDMETHOD.
 
@@ -465,13 +463,11 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
         ENDLOOP.
 
       CATCH cx_sy_conversion_error INTO DATA(conversion_error).
-        RAISE EXCEPTION NEW zcx_da_variants(
-                             text     = |{ TEXT-001 } { conversion_error->get_text( ) }|
-                             previous = conversion_error ).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-001 } { conversion_error->get_text( ) }|
+                                             previous = conversion_error ).
     ENDTRY.
 
   ENDMETHOD.
-
 
   METHOD get_last_counter.
 
@@ -482,13 +478,23 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
             AND parameterid = @parameter_id
           INTO @result.
 
+        IF me->configuration_table = default_table.
+          " the Fiori application parks pending counters in the draft table
+          SELECT FROM zda_variants_d
+            FIELDS MAX( counter ) AS counter
+            WHERE progname    = @program_name
+              AND parameterid = @parameter_id
+            INTO @DATA(draft_counter).
+
+          result = nmax( val1 = result val2 = draft_counter ).
+        ENDIF.
+
       CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(sql_error).
         RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-004 } { sql_error->get_text( ) }|
                                              previous = sql_error ).
     ENDTRY.
 
   ENDMETHOD.
-
 
   METHOD validate_input.
 
@@ -502,8 +508,7 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
     ENDIF.
 
     IF ( option = opt_bt OR option = opt_nb ) AND high_value IS INITIAL.
-      RAISE EXCEPTION NEW zcx_da_variants(
-                           text = |{ TEXT-013 } { CONV ty_base_opt( option ) }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-013 } { CONV ty_base_opt( option ) }| ).
     ENDIF.
 
   ENDMETHOD.
@@ -528,9 +533,9 @@ CLASS ZCL_DA_VARIANTS IMPLEMENTATION.
         SELECT SINGLE
           FROM (me->configuration_table)
           FIELDS created_by, created_at
-          WHERE progname    = @row-Progname
-            AND parameterid = @row-ParameterID
-            AND counter     = @row-Counter
+          WHERE progname    = @row-progname
+            AND parameterid = @row-parameterid
+            AND counter     = @row-counter
           INTO @stored_row.
 
       CATCH cx_sy_dynamic_osql_semantics

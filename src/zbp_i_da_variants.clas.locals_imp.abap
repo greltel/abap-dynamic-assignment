@@ -36,9 +36,6 @@ CLASS lhc_variants DEFINITION INHERITING FROM cl_abap_behavior_handler.
     METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
       IMPORTING keys REQUEST requested_authorizations FOR Variants RESULT result.
 
-    METHODS get_instance_features FOR INSTANCE FEATURES
-      IMPORTING keys REQUEST requested_features FOR Variants RESULT result.
-
     METHODS earlynumbering_create FOR NUMBERING
       IMPORTING entities FOR CREATE Variants.
 
@@ -123,24 +120,6 @@ CLASS lhc_variants IMPLEMENTATION.
     ENDLOOP.
 
   ENDMETHOD.
-
-
-  METHOD get_instance_features.
-
-    READ ENTITIES OF zi_da_variants IN LOCAL MODE
-      ENTITY Variants FIELDS ( Opt ) WITH CORRESPONDING #( keys )
-      RESULT DATA(variants).
-
-    result = VALUE #( FOR variant IN variants
-                      ( %tky             = variant-%tky
-                        %field-HighValue = COND #(
-                            WHEN variant-Opt = option_between
-                              OR variant-Opt = option_not_between
-                            THEN if_abap_behv=>fc-f-unrestricted
-                            ELSE if_abap_behv=>fc-f-read_only ) ) ).
-
-  ENDMETHOD.
-
 
   METHOD earlynumbering_create.
 

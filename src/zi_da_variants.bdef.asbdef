@@ -19,7 +19,6 @@ early numbering
   field ( mandatory : create, readonly : update ) Progname, Parameterid;
   field ( mandatory ) Value;
   field ( mandatory ) Sign, Opt;
-  field ( features : instance ) HighValue;
 
   determination setDefaults on modify { create; }
 
