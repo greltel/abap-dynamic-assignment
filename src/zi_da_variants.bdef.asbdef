@@ -18,13 +18,14 @@ early numbering
   field ( readonly ) Counter;
   field ( mandatory : create, readonly : update ) Progname, Parameterid;
   field ( mandatory ) Value;
+  field ( mandatory ) Sign, Opt;
   field ( features : instance ) HighValue;
 
   determination setDefaults on modify { create; }
 
   validation checkDataElements on save
   { create; update;
-    field DataElement, MappingDataElement, MappingValue; }
+    field DataElement, MappingDataElement ; }
 
   validation checkRangeConsistency on save
   { create; update;

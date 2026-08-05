@@ -158,12 +158,19 @@ CLASS lhc_variants IMPLEMENTATION.
           FIELDS MAX( counter ) AS counter
           WHERE progname    = @entity-Progname
             AND parameterid = @entity-Parameterid
-          INTO @DATA(persisted_counter).
+          INTO @DATA(active_counter).
+
+        SELECT FROM zda_variants_d
+          FIELDS MAX( counter ) AS counter
+          WHERE progname    = @entity-Progname
+            AND parameterid = @entity-Parameterid
+          INTO @DATA(draft_counter).
 
         INSERT VALUE #( progname    = entity-Progname
                         parameterid = entity-Parameterid
-                        counter     = persisted_counter ) INTO TABLE last_counters
-                                                          ASSIGNING <last_counter>.
+                        counter     = nmax( val1 = active_counter
+                                            val2 = draft_counter ) ) INTO TABLE last_counters
+                                                                     ASSIGNING <last_counter>.
       ENDIF.
 
       <last_counter>-counter += 1.
