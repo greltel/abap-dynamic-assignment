@@ -39,7 +39,7 @@ The repository was created by [George Drakos](https://www.linkedin.com/in/george
   Production without a Transport Request.
 * **RTTS:** Builds single values, range tables (ready for `SELECT ... IN`) and mapping tables at runtime.
   Every value is converted into the type of the caller's own variable.
-* **ABAP Cloud:** Written for ABAP for Cloud Development, language version 5.
+* **ABAP Cloud:** Written for ABAP for Cloud Development.
 * **Testable:** The public surface sits behind `ZIF_DA_VARIANTS`, so consumers can mock the framework
   with `cl_abap_testdouble` instead of setting up a database.
 * **Unit Tested:** 67 ABAP Unit tests across five test classes, using the OSQL Test Double Framework
