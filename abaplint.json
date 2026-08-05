@@ -14,35 +14,30 @@
     "errorNamespace": "."
   },
   "rules": {
+    "check_syntax": true,
     "exporting": true,
+    "unused_variables": {
+      "exclude": [
+        "zbp_.*"
+      ]
+    },
+    "unused_types": true,
+    "unused_methods": {
+      "exclude": [
+        "zbp_.*"
+      ]
+    },
     "local_class_naming": {
-      "exclude": [],
       "severity": "Error",
       "patternKind": "required",
-      "ignoreNames": [],
-      "ignorePatterns": [],
       "local": "^L.+$",
       "exception": "^LCX_.+$",
-      "test": "^L.+$"
+      "test": "^LT[CDH]_.+$"
     },
-    "method_parameter_names": {
-      "exclude": [],
-      "severity": "Error",
-      "patternKind": "required",
-      "ignoreNames": [],
-      "ignorePatterns": [],
-      "ignoreExceptions": true,
-      "importing": "^I._.+$",
-      "returning": "^R._.+$",
-      "changing": "^C._.+$",
-      "exporting": "^E._.+$"
-    },
+    "method_parameter_names": false,
     "object_naming": {
-      "exclude": [],
       "severity": "Error",
       "patternKind": "required",
-      "ignoreNames": [],
-      "ignorePatterns": [],
       "clas": "^Z(C[LX]|BP)",
       "intf": "^ZIF",
       "prog": "^Z",
@@ -62,21 +57,31 @@
       "ssst": "^Z",
       "shlp": "^Z"
     },
-    "selection_screen_naming": {
-      "exclude": [],
-      "severity": "Error",
-      "patternKind": "required",
-      "ignoreNames": [],
-      "ignorePatterns": [],
-      "parameter": "^P_.+$",
-      "selectOption": "^S_.+$",
-      "screenElement": "^SC_.+$"
-    },
     "types_naming": {
-      "exclude": [],
       "severity": "Error",
-      "pattern": "^T.+$"
+      "pattern": "^TY_.+$"
     },
-    "unused_variables": true
+    "line_length": {
+      "length": 120
+    },
+    "max_one_statement": true,
+    "prefer_inline": true,
+    "prefer_is_not": true,
+    "prefer_xsdbool": true,
+    "use_new": true,
+    "sql_escape_host_variables": true,
+    "avoid_use": {
+      "defaultKey": true,
+      "break": true,
+      "statics": true,
+      "describeLines": true
+    },
+    "identical_conditions": true,
+    "method_length": {
+      "statements": 40
+    },
+    "cyclomatic_complexity": {
+      "max": 12
+    }
   }
 }
