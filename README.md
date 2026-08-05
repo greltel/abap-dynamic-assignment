@@ -23,8 +23,7 @@ bypassing hardcoded values and the rigid standard TVARVC table.
 7. [Usage](#usage)
 8. [The configuration table](#the-configuration-table)
 9. [Running the tests](#running-the-tests)
-10. [Known limitations](#known-limitations)
-11. [Contributing](#contributing)
+10. [Contributing](#contributing)
 
 ## License
 This project is licensed under the [MIT License](https://github.com/greltel/abap-dynamic-assignment/blob/main/LICENSE).
@@ -253,21 +252,6 @@ Static checks, locally or in CI:
 npm install -g @abaplint/cli
 abaplint
 ```
-
-## Known limitations
-
-* **Value mapping is one to one.** `HighValue` is ignored when the mapping table is built, so a range
-  cannot be translated as a whole.
-* **No delete API.** `set_variant` creates and replaces. Removing a variant is done through the Fiori
-  application, or by setting `IS_ACTIVE` to blank.
-* **Concurrent numbering.** Two users creating a variant for the same parameter at the same moment can
-  receive the same counter, and the second activation then fails. The window is narrow but real.
-* **Type conversion is not validated on write.** A value that does not fit its configured data element
-  is only noticed when it is read back — and for `NUMC` it is silently filtered rather than rejected.
-* **Messages are text symbols**, not a message class, so they live in two text pools and are not
-  translatable as one unit.
-* **Direct table maintenance bypasses every validation.** Set `@AbapCatalog.dataMaintenance: #RESTRICTED`
-  on `ZDA_VARIANTS` if the Fiori application and `set_variant` are the only sanctioned entry points.
 
 ## Contributing
 
