@@ -214,13 +214,6 @@ DATA(variants) = CAST zif_da_variants(
 The injected table must be **structurally identical** to `ZDA_VARIANTS` and must reside in one of the
 listed packages.
 
-### Trying it out
-
-`ZCL_DA_VARIANTS_DEMO` is a runnable console application. Open it in ADT and press **F9**. It seeds a
-small configuration, reads it back through every target, uses a range in a real `SELECT`, and shows
-what a consumer sees when the configuration is missing or invalid. Nothing is committed unless you set
-`keep_data` to `abap_true`.
-
 ## The configuration table
 
 | Column | Meaning |
