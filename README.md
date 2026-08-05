@@ -24,8 +24,7 @@ bypassing hardcoded values and the rigid standard TVARVC table.
 8. [The configuration table](#the-configuration-table)
 9. [Running the tests](#running-the-tests)
 10. [Known limitations](#known-limitations)
-11. [Upgrading from 1.0.0](#upgrading-from-100)
-12. [Contributing](#contributing)
+11. [Contributing](#contributing)
 
 ## License
 This project is licensed under the [MIT License](https://github.com/greltel/abap-dynamic-assignment/blob/main/LICENSE).
@@ -98,7 +97,7 @@ Build two PFCG roles — most users only need to see what is configured:
 
 ### Reading variants programmatically
 
-1. Declare variables for your target data types — a single value, a range, or a table.
+1. Declare variables for your target data types. A single value, a range, or a table.
 2. Instantiate `ZCL_DA_VARIANTS` behind `ZIF_DA_VARIANTS`.
 3. Call `get_variant`. Only the targets you actually supply are computed.
 4. Use the result directly in your business logic or in Open SQL.
@@ -276,19 +275,6 @@ abaplint
   translatable as one unit.
 * **Direct table maintenance bypasses every validation.** Set `@AbapCatalog.dataMaintenance: #RESTRICTED`
   on `ZDA_VARIANTS` if the Fiori application and `set_variant` are the only sanctioned entry points.
-
-## Upgrading from 1.0.0
-
-Version 2.0.0 contains breaking API changes. See **`MIGRATION.md`** for the full list and the
-activation order. The short version:
-
-| 1.0.0 | 2.0.0 |
-|---|---|
-| `im_parameterid`, `ex_fieldvalue`, … | `parameter_id`, `field_value`, … — Clean ABAP naming |
-| `NEW zcl_da_variants( )` | the constructor now raises `ZCX_DA_VARIANTS` |
-| `set_variant` always inserted | it now replaces when `counter` is supplied |
-| `im_commit` defaulted to `abap_true` | `commit` defaults to `abap_false` |
-| the class was used directly | prefer `ZIF_DA_VARIANTS`, so consumers can mock it |
 
 ## Contributing
 
