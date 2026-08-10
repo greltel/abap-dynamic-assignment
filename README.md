@@ -1,5 +1,5 @@
 # ABAP Dynamic Assignment
-# ✅ Status: Release (2.0.0)
+# ✅ Status: Release (2.1.0)
 > **Open Source Contribution:** This project is community-driven and **Open Source**! 🚀
 > If you spot a bug or have an idea for a cool enhancement, your contributions are more than welcome. Feel free to open an **Issue** or submit a **Pull Request**.
 
@@ -167,6 +167,32 @@ ENDTRY.
 non-elementary data element, and `BT` or `NB` without an upper bound. The Fiori application enforces
 the same rules through RAP validations.
 
+### Removing variants
+
+```abap
+TRY.
+    DATA(variants) = CAST zif_da_variants( NEW zcl_da_variants( ) ).
+
+    " one row
+    DATA(removed) = variants->delete_variant( parameter_id = 'DEFAULT_PLANTS'
+                                              program_name = 'ZTEST'
+                                              counter      = '00002' ).
+
+    " the whole parameter
+    removed = variants->delete_variant( parameter_id = 'DEFAULT_PLANTS'
+                                        program_name = 'ZTEST' ).
+
+  CATCH zcx_da_variants INTO DATA(error).
+    " no parameter was named, or the database refused the delete
+ENDTRY.
+```
+
+`delete_variant` returns the number of rows it removed. Removing what is not there is not an error,
+so a cleanup script can run twice. A blank `parameter_id` is refused, because without it the call
+would clear whatever happens to carry a blank key.
+
+> **The caller owns the LUW here as well.** Pass `commit = abap_true` only from standalone scripts.
+
 ### Value mapping
 
 Beyond filtering, the framework can translate. A mapping variant answers *"what does X correspond to?"*
@@ -198,9 +224,44 @@ The table is returned as a data reference because the type of the `MAPPING_VALUE
 at runtime, from the configured `MappingDataElement`. If a parameter holds a single row, use
 `mapping_field_value` instead and skip the table entirely.
 
-> **Keep the two roles apart.** A mapping row uses `EQ` and leaves `HighValue` empty; the range fields
-> have no meaning there. Use separate `Parameterid` values for ranges and for mappings, otherwise the
-> same rows get read two different ways and confuse the next reader.
+> **Two ways to read the same rows.** A mapping table built with `mapping_values` pairs `Value` with
+> `MappingValue` and ignores the range fields. `map_value` uses them as the rule that decides which
+> pair applies. Rows written for the first style work in the second: an `EQ` row simply matches its
+> own value.
+
+### Classifying a value
+
+`get_variant` answers *"which values are in scope"*. `map_value` reads the same rows the other way
+round and answers *"which bucket does this one value fall into"*. Every active row is a rule,
+evaluated in counter order, with the operator and the bounds it carries.
+
+| Progname | Parameterid | Counter | Sign | Opt | Value | HighValue | MappingValue |
+|---|---|---|---|---|---|---|---|
+| ZPLANTS | PLANT_REGION | 1 | E | EQ | `1500` | | |
+| ZPLANTS | PLANT_REGION | 2 | I | BT | `1000` | `1999` | `NORTH` |
+| ZPLANTS | PLANT_REGION | 3 | I | BT | `2000` | `2999` | `SOUTH` |
+
+```abap
+DATA region TYPE c LENGTH 10.
+
+variants->map_value( EXPORTING parameter_id  = 'PLANT_REGION'
+                               program_name  = 'ZPLANTS'
+                               input         = '1200'
+                     IMPORTING mapping_value = region       " NORTH
+                               matched       = DATA(matched) ).
+```
+
+The first rule that answers decides. Row 1 carries `sign_exclude`, so plant `1500` stops the search
+and comes back unmatched even though row 2 would otherwise have covered it. That is how a hole is
+punched into a range that maps as a whole.
+
+> **The comparison runs in the configured DDIC type.** A `BT 9 AND 100` on a numeric element matches
+> `50`. On the stored 255 character strings the same rule would reject it, because `'50'` sorts below
+> `'9'`. Set `DataElement` whenever the values are numeric or dates. Patterns (`CP`, `NP`) always
+> compare character wise, wildcards included.
+
+> **A value that no rule covers is not an error.** `matched` comes back `abap_false` and
+> `mapping_value` stays initial. Only an unknown parameter raises.
 
 ### Injecting your own configuration table
 
@@ -236,15 +297,21 @@ Administrative fields are filled by the RAP framework and by `set_variant`.
 ADT: right click the package -> Run As -> ABAP Unit Test   (Ctrl+Shift+F10)
 ```
 
-67 tests across five test classes:
+123 tests across eleven test classes:
 
 | Test class | Covers |
 |---|---|
 | `ltc_variants` | Ranges, value tables, mapping tables, normalisation, validation, the constructor |
+| `ltc_defects` | Regressions for the six defects closed in 2.1.0 |
+| `ltc_value_types` | The type check that runs before a value is written |
+| `ltc_mapping` | `map_value`, every operator, exclusion and rule order |
+| `ltc_delete` | `delete_variant`, single rows and whole parameters |
 | `ltc_exception` | The dynamic message text of `ZCX_DA_VARIANTS` |
-| `ltc_numbering` | Early numbering, including pending drafts |
+| `ltc_numbering` | Early numbering, pending drafts and the exhausted key range |
 | `ltc_defaults` | The determination that fills `IsActive`, `Sign` and `Opt` |
-| `ltc_validations` | Both save-time validations, triggered through a real save |
+| `ltc_validations` | All three save-time validations, triggered through a real save |
+| `ltc_option_vh` | The options query provider, including the paging contract |
+| `ltc_sign_vh` | The sign query provider, including the paging contract |
 
 Static checks, locally or in CI:
 
@@ -252,6 +319,16 @@ Static checks, locally or in CI:
 npm install -g @abaplint/cli
 abaplint
 ```
+
+## Known limitations
+
+* **The API does not check authorizations.** `ZDA_VAR` protects the Fiori application through the
+  behaviour definition and the DCL. `set_variant` and `delete_variant` write directly, so anything
+  that can call the class can change configuration.
+* **Messages are text symbols** split over two text pools, so they are not translatable as one unit.
+  The free text a RAP message carries is capped, which is why the wording is kept short.
+* **Direct table access bypasses every validation.** The maintenance flag on `ZDA_VARIANTS` restricts
+  generic maintenance, but a report writing the table directly still gets past every check.
 
 ## Contributing
 
