@@ -57,10 +57,21 @@ CLASS zcl_da_variants DEFINITION
     TYPES ty_user          TYPE zda_variants-created_by.
     TYPES ty_data_elements TYPE STANDARD TABLE OF ty_data_el WITH EMPTY KEY.
 
+    TYPES: "! Creation stamp of a row that is already stored.
+      BEGIN OF ty_creation_info,
+        created_by TYPE zda_variants-created_by,
+        created_at TYPE zda_variants-created_at,
+      END OF ty_creation_info.
+
     CONSTANTS default_table    TYPE ty_tabname  VALUE 'ZDA_VARIANTS'         ##NO_TEXT.
     CONSTANTS default_packages TYPE string      VALUE 'ZDA_DYNAMIC_ASSIGNMENT' ##NO_TEXT.
     CONSTANTS default_program  TYPE ty_progname VALUE 'GLOBAL'               ##NO_TEXT.
     CONSTANTS fallback_user    TYPE ty_user     VALUE 'UNKNOWN'              ##NO_TEXT.
+
+    "! Highest counter the NUMC(5) key can hold.
+    CONSTANTS max_counter  TYPE i VALUE 99999.
+    "! Times an append retries after another LUW took the allocated counter.
+    CONSTANTS max_attempts TYPE i VALUE 5.
 
     CONSTANTS component_sign   TYPE string VALUE `SIGN`          ##NO_TEXT.
     CONSTANTS component_option TYPE string VALUE `OPTION`        ##NO_TEXT.
@@ -82,12 +93,19 @@ CLASS zcl_da_variants DEFINITION
       RETURNING VALUE(result) TYPE ty_variants
       RAISING   zcx_da_variants.
 
-    "! Rejects a parameter whose rows do not all share one data element.
+    "! Rejects a parameter whose rows do not share one value and one mapping type.
     "! @parameter variants        | Rows of one parameter
-    "! @raising   zcx_da_variants | More than one data element found
+    "! @raising   zcx_da_variants | More than one data element found on either column
     METHODS check_type_consistency
       IMPORTING variants TYPE ty_variants
       RAISING   zcx_da_variants.
+
+    "! Returns the rows that actually carry a mapping value.
+    "! @parameter variants | Active variants, ordered by counter
+    "! @parameter result   | Rows with a filled mapping value, order preserved
+    METHODS mapping_variants
+      IMPORTING variants      TYPE ty_variants
+      RETURNING VALUE(result) TYPE ty_variants.
 
     "! Resolves the DDIC type of a variant column.
     "! @parameter data_element    | Configured data element, may be initial
@@ -101,18 +119,26 @@ CLASS zcl_da_variants DEFINITION
       RAISING   zcx_da_variants.
 
     "! Appends one range line per variant to the caller's own range table.
-    "! @parameter variants | Active variants, ordered by counter
-    "! @parameter range    | Caller's range table, appended in place
+    "! <p>The caller's table is emptied again when a stored value does not fit the
+    "! target type, so that a rejected read never leaves half a range behind.</p>
+    "! @parameter variants        | Active variants, ordered by counter
+    "! @parameter range           | Caller's range table, appended in place
+    "! @raising   zcx_da_variants | A stored value does not fit the caller's range type
     METHODS fill_range
       IMPORTING variants TYPE ty_variants
-      CHANGING  range    TYPE STANDARD TABLE.
+      CHANGING  range    TYPE STANDARD TABLE
+      RAISING   zcx_da_variants.
 
     "! Appends one value per variant to the caller's own value table.
-    "! @parameter variants | Active variants, ordered by counter
-    "! @parameter values   | Caller's value table, appended in place
+    "! <p>The caller's table is emptied again when a stored value does not fit the
+    "! target type, so that a rejected read never leaves half a result behind.</p>
+    "! @parameter variants        | Active variants, ordered by counter
+    "! @parameter values          | Caller's value table, appended in place
+    "! @raising   zcx_da_variants | A stored value does not fit the caller's line type
     METHODS fill_values
       IMPORTING variants TYPE ty_variants
-      CHANGING  values   TYPE STANDARD TABLE.
+      CHANGING  values   TYPE STANDARD TABLE
+      RAISING   zcx_da_variants.
 
     "! Builds a dynamically typed table of value and mapping pairs.
     "! @parameter variants        | Active variants, ordered by counter
@@ -134,6 +160,27 @@ CLASS zcl_da_variants DEFINITION
       RETURNING VALUE(result) TYPE ty_counter
       RAISING   zcx_da_variants.
 
+    "! Allocates the counter that follows the highest one currently in use.
+    "! @parameter parameter_id    | Parameter to number
+    "! @parameter program_name    | Program scope
+    "! @parameter result          | Next free counter
+    "! @raising   zcx_da_variants | The key range is exhausted, or the table is unreadable
+    METHODS next_counter
+      IMPORTING parameter_id  TYPE ty_parameterid
+                program_name  TYPE ty_progname
+      RETURNING VALUE(result) TYPE ty_counter
+      RAISING   zcx_da_variants.
+
+    "! Numbers and inserts a new row, retrying when another LUW took the counter.
+    "! <p>The append path never replaces a stored row. When the counter allocated
+    "! here is taken between the read and the insert, the next one is allocated and
+    "! the insert is repeated up to <em>max_attempts</em> times.</p>
+    "! @parameter row             | Variant row without a counter, completed in place
+    "! @raising   zcx_da_variants | No free counter could be secured
+    METHODS append_row
+      CHANGING row TYPE ty_variant
+      RAISING  zcx_da_variants.
+
     "! Validates the parts of a variant that the database cannot enforce.
     "! @parameter data_element         | Data element of the value, may be initial
     "! @parameter mapping_data_element | Data element of the mapping value, may be initial
@@ -147,12 +194,21 @@ CLASS zcl_da_variants DEFINITION
                 high_value           TYPE ty_value
       RAISING   zcx_da_variants.
 
-    "! Fills the administrative fields and the generated description.
-    "! @parameter row             | Variant row, completed in place
+    "! Reads the creation stamp of a row that is about to be replaced.
+    "! @parameter row             | Variant row carrying the key to look up
+    "! @parameter result          | Stored creation stamp, initial when the row is new
     "! @raising   zcx_da_variants | The configuration table could not be read
+    METHODS read_creation_info
+      IMPORTING row           TYPE ty_variant
+      RETURNING VALUE(result) TYPE ty_creation_info
+      RAISING   zcx_da_variants.
+
+    "! Fills the administrative fields and the generated description.
+    "! @parameter creation_info | Stamp to keep, initial for a row that is created
+    "! @parameter row           | Variant row, completed in place
     METHODS stamp_admin_fields
-      CHANGING row TYPE ty_variant
-      RAISING  zcx_da_variants.
+      IMPORTING creation_info TYPE ty_creation_info OPTIONAL
+      CHANGING  row           TYPE ty_variant.
 
     "! Returns the technical name of the current user, or a fallback.
     "! @parameter result | User name, <em>UNKNOWN</em> when the context is unavailable
@@ -166,11 +222,22 @@ CLASS zcl_da_variants DEFINITION
       IMPORTING user_name     TYPE ty_user
       RETURNING VALUE(result) TYPE ty_description.
 
-    "! Writes one completed variant row to the configuration table.
+    "! Replaces one completed variant row in the configuration table.
+    "! <p>Only the replace path uses this. Overwriting a stored row is the point
+    "! here, which is why the caller has to supply the counter explicitly.</p>
     "! @parameter row             | Variant row to store
     "! @raising   zcx_da_variants | The database rejected the row
     METHODS persist_row
       IMPORTING row TYPE ty_variant
+      RAISING   zcx_da_variants.
+
+    "! Inserts one completed variant row without ever replacing a stored one.
+    "! @parameter row             | Variant row to insert
+    "! @parameter result          | <em>abap_false</em> when the key was already taken
+    "! @raising   zcx_da_variants | The configuration table could not be written
+    METHODS insert_row
+      IMPORTING row           TYPE ty_variant
+      RETURNING VALUE(result) TYPE abap_boolean
       RAISING   zcx_da_variants.
 
     "! Checks whether a name refers to an existing elementary DDIC type.
@@ -279,10 +346,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
     DATA(row) = VALUE ty_variant(
         progname        = program
         parameterid     = parameter
-        counter         = COND #( WHEN counter IS NOT INITIAL
-                                  THEN counter
-                                  ELSE get_last_counter( parameter_id = parameter
-                                                         program_name = program ) + 1 )
+        counter         = counter
         is_active       = is_active
         sign            = CONV ty_base_sign( variant_sign )
         opt             = CONV ty_base_opt( variant_option )
@@ -293,9 +357,15 @@ CLASS zcl_da_variants IMPLEMENTATION.
         mapping_data_el = mapping_element
         description     = description ).
 
-    stamp_admin_fields( CHANGING row = row ).
-
-    persist_row( row ).
+    IF counter IS INITIAL.
+      " append - the counter is allocated here and the row is only ever inserted
+      append_row( CHANGING row = row ).
+    ELSE.
+      " replace - the caller owns the key, so overwriting the row is intended
+      stamp_admin_fields( EXPORTING creation_info = read_creation_info( row )
+                          CHANGING  row           = row ).
+      persist_row( row ).
+    ENDIF.
 
     IF commit = abap_true.
       COMMIT WORK.
@@ -337,12 +407,32 @@ CLASS zcl_da_variants IMPLEMENTATION.
                                              GROUP BY variant-data_element
                                              ( element ) ).
 
-    IF lines( elements ) <= 1.
-      RETURN.
+    IF lines( elements ) > 1.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-012 } { variants[ 1 ]-parameterid }: |
+                                                  && concat_lines_of( table = elements sep = `, ` ) ).
     ENDIF.
 
-    RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-012 } { variants[ 1 ]-parameterid }: |
-                                                && concat_lines_of( table = elements sep = `, ` ) ).
+    " only rows that map something take part, a row without a mapping value has no type
+    DATA(mapping_rows) = mapping_variants( variants ).
+
+    DATA(mapping_elements) = VALUE ty_data_elements(
+                                 FOR GROUPS mapping_element OF mapping_row IN mapping_rows
+                                 GROUP BY mapping_row-mapping_data_el
+                                 ( mapping_element ) ).
+
+    IF lines( mapping_elements ) > 1.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-014 } { variants[ 1 ]-parameterid }: |
+                                                  && concat_lines_of( table = mapping_elements sep = `, ` ) ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD mapping_variants.
+
+    result = VALUE #( FOR variant IN variants
+                      WHERE ( mapping_value IS NOT INITIAL )
+                      ( variant ) ).
 
   ENDMETHOD.
 
@@ -375,41 +465,57 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   METHOD fill_range.
 
-    LOOP AT variants INTO DATA(variant).
+    TRY.
+        LOOP AT variants INTO DATA(variant).
 
-      APPEND INITIAL LINE TO range ASSIGNING FIELD-SYMBOL(<range_line>).
+          APPEND INITIAL LINE TO range ASSIGNING FIELD-SYMBOL(<range_line>).
 
-      ASSIGN COMPONENT component_sign OF STRUCTURE <range_line> TO FIELD-SYMBOL(<sign>).
-      IF sy-subrc = 0.
-        <sign> = variant-sign.
-      ENDIF.
+          ASSIGN COMPONENT component_sign OF STRUCTURE <range_line> TO FIELD-SYMBOL(<sign>).
+          IF sy-subrc = 0.
+            <sign> = variant-sign.
+          ENDIF.
 
-      ASSIGN COMPONENT component_option OF STRUCTURE <range_line> TO FIELD-SYMBOL(<option>).
-      IF sy-subrc = 0.
-        <option> = variant-opt.
-      ENDIF.
+          ASSIGN COMPONENT component_option OF STRUCTURE <range_line> TO FIELD-SYMBOL(<option>).
+          IF sy-subrc = 0.
+            <option> = variant-opt.
+          ENDIF.
 
-      ASSIGN COMPONENT component_low OF STRUCTURE <range_line> TO FIELD-SYMBOL(<low>).
-      IF sy-subrc = 0.
-        <low> = variant-value.
-      ENDIF.
+          ASSIGN COMPONENT component_low OF STRUCTURE <range_line> TO FIELD-SYMBOL(<low>).
+          IF sy-subrc = 0.
+            <low> = variant-value.
+          ENDIF.
 
-      ASSIGN COMPONENT component_high OF STRUCTURE <range_line> TO FIELD-SYMBOL(<high>).
-      IF sy-subrc = 0 AND variant-high_value IS NOT INITIAL.
-        <high> = variant-high_value.
-      ENDIF.
+          ASSIGN COMPONENT component_high OF STRUCTURE <range_line> TO FIELD-SYMBOL(<high>).
+          IF sy-subrc = 0 AND variant-high_value IS NOT INITIAL.
+            <high> = variant-high_value.
+          ENDIF.
 
-    ENDLOOP.
+        ENDLOOP.
+
+      CATCH cx_sy_conversion_error INTO DATA(conversion_error).
+        CLEAR range.
+        RAISE EXCEPTION NEW zcx_da_variants(
+                  text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
+                  previous = conversion_error ).
+    ENDTRY.
 
   ENDMETHOD.
 
 
   METHOD fill_values.
 
-    LOOP AT variants INTO DATA(variant).
-      APPEND INITIAL LINE TO values ASSIGNING FIELD-SYMBOL(<value_line>).
-      <value_line> = variant-value.
-    ENDLOOP.
+    TRY.
+        LOOP AT variants INTO DATA(variant).
+          APPEND INITIAL LINE TO values ASSIGNING FIELD-SYMBOL(<value_line>).
+          <value_line> = variant-value.
+        ENDLOOP.
+
+      CATCH cx_sy_conversion_error INTO DATA(conversion_error).
+        CLEAR values.
+        RAISE EXCEPTION NEW zcx_da_variants(
+                  text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
+                  previous = conversion_error ).
+    ENDTRY.
 
   ENDMETHOD.
 
@@ -420,10 +526,14 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
     DATA(first_variant) = VALUE ty_variant( variants[ 1 ] OPTIONAL ).
 
+    " the mapping type belongs to the rows that map something, not to the first row
+    DATA(mapping_rows)  = mapping_variants( variants ).
+    DATA(first_mapping) = VALUE ty_variant( mapping_rows[ 1 ] OPTIONAL ).
+
     DATA(value_type)   = resolve_element_type( data_element = first_variant-data_element
                                                sample_value = first_variant-value ).
-    DATA(mapping_type) = resolve_element_type( data_element = first_variant-mapping_data_el
-                                               sample_value = first_variant-mapping_value ).
+    DATA(mapping_type) = resolve_element_type( data_element = first_mapping-mapping_data_el
+                                               sample_value = first_mapping-mapping_value ).
 
     TRY.
         DATA(table_type) = cl_abap_tabledescr=>create(
@@ -446,7 +556,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
     ASSIGN result->* TO <mapping_table>.
 
     TRY.
-        LOOP AT variants INTO DATA(variant) WHERE mapping_value IS NOT INITIAL.
+        LOOP AT mapping_rows INTO DATA(variant).
 
           APPEND INITIAL LINE TO <mapping_table> ASSIGNING FIELD-SYMBOL(<mapping_line>).
 
@@ -496,6 +606,42 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   ENDMETHOD.
 
+
+  METHOD next_counter.
+
+    DATA(highest) = CONV i( get_last_counter( parameter_id = parameter_id
+                                              program_name = program_name ) ).
+
+    IF highest >= max_counter.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-015 } { parameter_id }| ).
+    ENDIF.
+
+    result = highest + 1.
+
+  ENDMETHOD.
+
+
+  METHOD append_row.
+
+    DO max_attempts TIMES.
+
+      row-counter = next_counter( parameter_id = row-parameterid
+                                  program_name = row-progname ).
+
+      stamp_admin_fields( CHANGING row = row ).
+
+      IF insert_row( row ) = abap_true.
+        RETURN.
+      ENDIF.
+
+    ENDDO.
+
+    " every allocated counter was taken by a competing LUW before the insert
+    RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-016 } { row-parameterid }| ).
+
+  ENDMETHOD.
+
+
   METHOD validate_input.
 
     IF data_element IS NOT INITIAL AND data_element_exists( data_element ) = abap_false.
@@ -514,29 +660,16 @@ CLASS zcl_da_variants IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD stamp_admin_fields.
-    DATA change_time TYPE zda_variants-created_at.
-
-    DATA(user_name) = current_user( ).
-
-    GET TIME STAMP FIELD change_time.
+  METHOD read_creation_info.
 
     TRY.
-        " replacing a row must not rewrite its original creator
-        TYPES: BEGIN OF ty_creation_info,
-                 created_by TYPE zda_variants-created_by,
-                 created_at TYPE zda_variants-created_at,
-               END OF ty_creation_info.
-
-        DATA stored_row TYPE ty_creation_info.
-
         SELECT SINGLE
           FROM (me->configuration_table)
           FIELDS created_by, created_at
           WHERE progname    = @row-progname
             AND parameterid = @row-parameterid
             AND counter     = @row-counter
-          INTO @stored_row.
+          INTO @result.
 
       CATCH cx_sy_dynamic_osql_semantics
             cx_sy_dynamic_osql_syntax INTO DATA(sql_error).
@@ -544,13 +677,22 @@ CLASS zcl_da_variants IMPLEMENTATION.
                                              previous = sql_error ).
     ENDTRY.
 
-    DATA(row_exists) = xsdbool( sy-subrc = 0 ).
+  ENDMETHOD.
 
-    row-created_by            = COND #( WHEN row_exists = abap_true
-                                        THEN stored_row-created_by
+
+  METHOD stamp_admin_fields.
+    DATA change_time TYPE zda_variants-created_at.
+
+    DATA(user_name) = current_user( ).
+
+    GET TIME STAMP FIELD change_time.
+
+    " replacing a row must not rewrite its original creator
+    row-created_by            = COND #( WHEN creation_info-created_by IS NOT INITIAL
+                                        THEN creation_info-created_by
                                         ELSE user_name ).
-    row-created_at            = COND #( WHEN row_exists = abap_true
-                                        THEN stored_row-created_at
+    row-created_at            = COND #( WHEN creation_info-created_at IS NOT INITIAL
+                                        THEN creation_info-created_at
                                         ELSE change_time ).
     row-last_changed_by       = user_name.
     row-last_changed_at       = change_time.
@@ -607,6 +749,22 @@ CLASS zcl_da_variants IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD insert_row.
+
+    TRY.
+        INSERT (me->configuration_table) FROM @row.
+
+      CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(write_error).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-010 } { write_error->get_text( ) }|
+                                             previous = write_error ).
+    ENDTRY.
+
+    " a key that is already taken is not an error, the caller allocates the next one
+    result = xsdbool( sy-subrc = 0 ).
+
+  ENDMETHOD.
+
+
   METHOD data_element_exists.
 
     cl_abap_typedescr=>describe_by_name( EXPORTING  p_name         = data_element
@@ -621,3 +779,4 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   ENDMETHOD.
 ENDCLASS.
+

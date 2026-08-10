@@ -146,8 +146,10 @@ ENDCLASS.
 CLASS ltc_variants IMPLEMENTATION.
 
   METHOD class_setup.
+    " the draft table is doubled as well, get_last_counter( ) reads it
     sql_environment = cl_osql_test_environment=>create(
-                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' ) ) ).
+                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
+                                                       ( 'ZDA_VARIANTS_D' ) ) ).
   ENDMETHOD.
 
   METHOD class_teardown.
@@ -1049,6 +1051,381 @@ CLASS ltc_exception IMPLEMENTATION.
     cl_abap_unit_assert=>assert_bound(
         act = error->previous
         msg = 'The exception chain must be preserved' ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! Pins the three defects found after the 1.0.0 review of {@link ZCL_DA_VARIANTS}.
+"! <p>Every test describes the behaviour the framework must show. They are expected
+"! to be <strong>red</strong> until the corrections are delivered:</p>
+"! <ul>
+"! <li><em>Defect 1</em> - the append path of set_variant( ) writes with MODIFY, so a
+"! computed counter that is already taken replaces a stored row instead of being
+"! rejected. This is the single threaded, reproducible form of the numbering race.</li>
+"! <li><em>Defect 2</em> - fill_range( ) and fill_values( ) run outside a TRY, so a value
+"! that does not fit the caller's target ends in a short dump instead of
+"! {@link ZCX_DA_VARIANTS}.</li>
+"! <li><em>Defect 3</em> - consistency check and type resolution ignore MAPPING_DATA_EL,
+"! so mixed mapping types are accepted and the mapping column is typed from a row
+"! that carries no mapping value at all.</li>
+"! </ul>
+"! <p>Unlike {@link ltc_variants} this class also doubles ZDA_VARIANTS_D, so the
+"! counter tests no longer depend on what happens to sit in the real draft table.</p>
+CLASS ltc_defects DEFINITION FINAL FOR TESTING
+  RISK LEVEL HARMLESS
+  DURATION SHORT.
+
+  PRIVATE SECTION.
+
+    TYPES ty_drafts TYPE STANDARD TABLE OF zda_variants_d WITH EMPTY KEY.
+
+    CLASS-DATA sql_environment TYPE REF TO if_osql_test_environment.
+    DATA       cut             TYPE REF TO zif_da_variants.
+
+    CONSTANTS test_program   TYPE zif_da_variants=>ty_progname    VALUE 'TEST_PROG'    ##NO_TEXT.
+    CONSTANTS test_parameter TYPE zif_da_variants=>ty_parameterid VALUE 'UNIT_TEST'    ##NO_TEXT.
+    CONSTANTS highest_ctr    TYPE zif_da_variants=>ty_counter     VALUE '99999'        ##NO_TEXT.
+    CONSTANTS sign_el        TYPE zif_da_variants=>ty_data_el     VALUE 'ZDE_DA_SIGN'  ##NO_TEXT.
+    CONSTANTS descr_el       TYPE zif_da_variants=>ty_data_el     VALUE 'ZDE_DA_DESCR' ##NO_TEXT.
+
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
+    METHODS setup RAISING cx_static_check.
+
+    " ----- defect 1, the append path must never overwrite -------------------
+    "! An append that cannot be numbered must be rejected, not wrapped around.
+    METHODS given_counter_full_then_error  FOR TESTING.
+    "! Two appends must never end up on one key, whatever the numbering does.
+    METHODS given_two_appends_then_no_loss FOR TESTING.
+    "! Guard: a counter parked in the draft table must not be handed out twice.
+    METHODS given_draft_counter_then_next  FOR TESTING RAISING cx_static_check.
+
+    " ----- defect 2, conversion errors on read must be reported --------------
+    "! A value that does not fit a numeric caller range must raise, not dump.
+    METHODS given_int_range_then_error     FOR TESTING.
+    "! A value that does not fit a numeric caller table must raise, not dump.
+    METHODS given_int_values_then_error    FOR TESTING.
+    "! An upper bound that does not fit the caller range must raise, not dump.
+    METHODS given_bad_high_then_error      FOR TESTING.
+
+    " ----- defect 3, the mapping type is resolved from the wrong row ---------
+    "! Mixed mapping data elements inside one parameter must be rejected.
+    METHODS given_mixed_map_els_then_error FOR TESTING.
+    "! The mapping column must be typed from the first row that maps anything.
+    METHODS given_late_map_el_then_typed   FOR TESTING RAISING cx_static_check.
+
+    " ----- helpers ----------------------------------------------------------
+    METHODS insert_variant
+      IMPORTING value           TYPE zif_da_variants=>ty_value   OPTIONAL
+                high_value      TYPE zif_da_variants=>ty_value   OPTIONAL
+                option          TYPE zde_da_opt                  DEFAULT 'EQ'
+                sign            TYPE zde_da_sign                 DEFAULT 'I'
+                counter         TYPE zif_da_variants=>ty_counter DEFAULT '00001'
+                data_element    TYPE zif_da_variants=>ty_data_el OPTIONAL
+                mapping_value   TYPE zif_da_variants=>ty_value   OPTIONAL
+                mapping_data_el TYPE zif_da_variants=>ty_data_el OPTIONAL.
+
+    METHODS insert_draft
+      IMPORTING counter TYPE zif_da_variants=>ty_counter.
+
+    METHODS read_row
+      IMPORTING counter       TYPE zif_da_variants=>ty_counter
+      RETURNING VALUE(result) TYPE zda_variants.
+
+    METHODS count_rows
+      RETURNING VALUE(result) TYPE i.
+
+    METHODS mapping_column_length
+      IMPORTING mapping_values TYPE REF TO data
+                column         TYPE string
+      RETURNING VALUE(result)  TYPE i.
+
+ENDCLASS.
+
+
+CLASS ltc_defects IMPLEMENTATION.
+
+  METHOD class_setup.
+    sql_environment = cl_osql_test_environment=>create(
+                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
+                                                       ( 'ZDA_VARIANTS_D' ) ) ).
+  ENDMETHOD.
+
+  METHOD class_teardown.
+    sql_environment->destroy( ).
+  ENDMETHOD.
+
+  METHOD setup.
+    sql_environment->clear_doubles( ).
+    cut = NEW zcl_da_variants( ).
+  ENDMETHOD.
+
+
+  METHOD given_counter_full_then_error.
+
+    " given - the last counter of the parameter is already allocated
+    insert_variant( value = 'STORED' counter = highest_ctr ).
+
+    " when - the caller appends without a counter, so one has to be computed
+    TRY.
+        cut->set_variant( parameter_id = test_parameter
+                          program_name = test_program
+                          field_value  = 'NEW' ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'An append that cannot be numbered must be rejected' ).
+
+      CATCH zcx_da_variants.
+        " then - expected
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_two_appends_then_no_loss.
+
+    " given - the last counter of the parameter is already allocated
+    insert_variant( value = 'STORED' counter = highest_ctr ).
+
+    " when - two appends in a row, which today both compute the same counter
+    TRY.
+        cut->set_variant( parameter_id = test_parameter
+                          program_name = test_program
+                          field_value  = 'FIRST' ).
+
+        cut->set_variant( parameter_id = test_parameter
+                          program_name = test_program
+                          field_value  = 'SECOND' ).
+
+      CATCH zcx_da_variants.
+        " a rejected append is correct behaviour, nothing was lost
+        RETURN.
+    ENDTRY.
+
+    " then - two accepted appends must have produced two additional rows
+    cl_abap_unit_assert=>assert_equals(
+        exp = 3
+        act = count_rows( )
+        msg = 'An accepted append must never overwrite a row that is already stored' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_draft_counter_then_next.
+
+    " given - the Fiori application parks a pending counter in the draft table
+    insert_draft( '00007' ).
+
+    " when
+    cut->set_variant( parameter_id = test_parameter
+                      program_name = test_program
+                      field_value  = 'A' ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = 'A'
+        act = read_row( '00008' )-value
+        msg = 'A counter parked in the draft table must not be handed out twice' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_int_range_then_error.
+
+    " given - a stored value that is not a number
+    insert_variant( value = 'ABC' ).
+
+    " when - the caller works with a numeric range
+    TRY.
+        DATA number_range TYPE RANGE OF i.
+
+        cut->get_variant( EXPORTING parameter_id = test_parameter
+                                    program_name = test_program
+                          IMPORTING range        = number_range ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'A value that does not fit the caller range must be reported' ).
+
+      CATCH zcx_da_variants.
+        " then - expected, today the conversion error escapes as a short dump
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_int_values_then_error.
+
+    " given - a stored value that is not a number
+    insert_variant( value = 'ABC' ).
+
+    " when - the caller works with a numeric value table
+    TRY.
+        DATA numbers TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+
+        cut->get_variant( EXPORTING parameter_id = test_parameter
+                                    program_name = test_program
+                          IMPORTING values       = numbers ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'A value that does not fit the caller table must be reported' ).
+
+      CATCH zcx_da_variants.
+        " then - expected, today the conversion error escapes as a short dump
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_bad_high_then_error.
+
+    " given - a lower bound that converts and an upper bound that does not
+    insert_variant( value      = '1000'
+                    high_value = 'ABC'
+                    option     = 'BT' ).
+
+    " when
+    TRY.
+        DATA number_range TYPE RANGE OF i.
+
+        cut->get_variant( EXPORTING parameter_id = test_parameter
+                                    program_name = test_program
+                          IMPORTING range        = number_range ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'An upper bound that does not fit the caller range must be reported' ).
+
+      CATCH zcx_da_variants.
+        " then - expected, today the conversion error escapes as a short dump
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_mixed_map_els_then_error.
+
+    " given - one parameter, two rows, two different mapping data elements
+    insert_variant( counter         = '00001'
+                    value           = 'A'
+                    mapping_value   = 'I'
+                    mapping_data_el = sign_el ).
+
+    insert_variant( counter         = '00002'
+                    value           = 'B'
+                    mapping_value   = 'DESCRIPTION'
+                    mapping_data_el = descr_el ).
+
+    " when
+    TRY.
+        DATA mapping_values TYPE REF TO data.
+
+        cut->get_variant( EXPORTING parameter_id   = test_parameter
+                                    program_name   = test_program
+                          IMPORTING mapping_values = mapping_values ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'Mixed mapping data elements in one parameter must be rejected' ).
+
+      CATCH zcx_da_variants.
+        " then - expected, today row two is silently truncated to one character
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_late_map_el_then_typed.
+
+    " given - only the second row maps anything, and it carries the type
+    insert_variant( counter = '00001'
+                    value   = 'A' ).
+
+    insert_variant( counter         = '00002'
+                    value           = 'B'
+                    mapping_value   = 'MAPPED'
+                    mapping_data_el = descr_el ).
+
+    " when
+    DATA mapping_values TYPE REF TO data.
+
+    cut->get_variant( EXPORTING parameter_id   = test_parameter
+                                program_name   = test_program
+                      IMPORTING mapping_values = mapping_values ).
+
+    " then - the column must use ZDE_DA_DESCR, not the 255 character fallback
+    DATA reference TYPE zde_da_descr.
+
+    cl_abap_unit_assert=>assert_equals(
+        exp = cl_abap_typedescr=>describe_by_data( reference )->length
+        act = mapping_column_length( mapping_values = mapping_values
+                                     column         = `MAPPING_VALUE` )
+        msg = 'MAPPING_VALUE must be typed from the first row that maps a value' ).
+
+  ENDMETHOD.
+
+
+  METHOD insert_variant.
+
+    sql_environment->insert_test_data( VALUE zcl_da_variants=>ty_variants(
+      ( progname        = test_program
+        parameterid     = test_parameter
+        counter         = counter
+        is_active       = abap_true
+        sign            = sign
+        opt             = option
+        value           = value
+        high_value      = high_value
+        data_element    = data_element
+        mapping_value   = mapping_value
+        mapping_data_el = mapping_data_el ) ) ).
+
+  ENDMETHOD.
+
+
+  METHOD insert_draft.
+
+    sql_environment->insert_test_data( VALUE ty_drafts(
+      ( progname    = test_program
+        parameterid = test_parameter
+        counter     = counter ) ) ).
+
+  ENDMETHOD.
+
+
+  METHOD read_row.
+
+    SELECT SINGLE FROM zda_variants
+      FIELDS progname, parameterid, counter, is_active, sign, opt,
+             value, high_value, data_element, mapping_value, mapping_data_el,
+             description, created_by, created_at
+      WHERE progname    = @test_program
+        AND parameterid = @test_parameter
+        AND counter     = @counter
+      INTO CORRESPONDING FIELDS OF @result.
+
+  ENDMETHOD.
+
+
+  METHOD count_rows.
+
+    SELECT FROM zda_variants
+      FIELDS COUNT( * )
+      WHERE progname    = @test_program
+        AND parameterid = @test_parameter
+      INTO @result.
+
+  ENDMETHOD.
+
+
+  METHOD mapping_column_length.
+
+    FIELD-SYMBOLS <pairs> TYPE STANDARD TABLE.
+    ASSIGN mapping_values->* TO <pairs>.
+
+    DATA(table_type) = CAST cl_abap_tabledescr( cl_abap_typedescr=>describe_by_data( <pairs> ) ).
+    DATA(line_type)  = CAST cl_abap_structdescr( table_type->get_table_line_type( ) ).
+
+    result = line_type->get_component_type( CONV #( column ) )->length.
 
   ENDMETHOD.
 
