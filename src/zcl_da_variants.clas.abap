@@ -617,8 +617,10 @@ CLASS zcl_da_variants IMPLEMENTATION.
           ENDIF.
 
         CATCH cx_sy_conversion_error INTO DATA(conversion_error).
-          RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
-                                               previous = conversion_error ).
+          RAISE EXCEPTION NEW
+            zcx_da_variants(
+              text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
+              previous = conversion_error ).
       ENDTRY.
 
       matched = abap_true.
@@ -670,13 +672,20 @@ CLASS zcl_da_variants IMPLEMENTATION.
     ASSIGN typed_low->*   TO FIELD-SYMBOL(<low>).
 
     CASE variant-opt.
-      WHEN base_eq. result = xsdbool( <input> =  <low> ).
-      WHEN base_ne. result = xsdbool( <input> <> <low> ).
-      WHEN base_lt. result = xsdbool( <input> <  <low> ).
-      WHEN base_le. result = xsdbool( <input> <= <low> ).
-      WHEN base_gt. result = xsdbool( <input> >  <low> ).
-      WHEN base_ge. result = xsdbool( <input> >= <low> ).
-      WHEN OTHERS. result = abap_false.
+      WHEN base_eq.
+        result = xsdbool( <input> =  <low> ).
+      WHEN base_ne.
+        result = xsdbool( <input> <> <low> ).
+      WHEN base_lt.
+        result = xsdbool( <input> <  <low> ).
+      WHEN base_le.
+        result = xsdbool( <input> <= <low> ).
+      WHEN base_gt.
+        result = xsdbool( <input> >  <low> ).
+      WHEN base_ge.
+        result = xsdbool( <input> >= <low> ).
+      WHEN OTHERS.
+        result = abap_false.
     ENDCASE.
 
   ENDMETHOD.
@@ -869,8 +878,10 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
       CATCH cx_sy_conversion_error INTO DATA(conversion_error).
         CLEAR range.
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
-                                             previous = conversion_error ).
+        RAISE EXCEPTION NEW
+          zcx_da_variants(
+            text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
+            previous = conversion_error ).
     ENDTRY.
 
   ENDMETHOD.
@@ -886,8 +897,10 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
       CATCH cx_sy_conversion_error INTO DATA(conversion_error).
         CLEAR values.
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
-                                             previous = conversion_error ).
+        RAISE EXCEPTION NEW
+          zcx_da_variants(
+            text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
+            previous = conversion_error ).
     ENDTRY.
 
   ENDMETHOD.
