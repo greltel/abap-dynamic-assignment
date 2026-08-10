@@ -1841,3 +1841,590 @@ CLASS ltc_value_types IMPLEMENTATION.
   ENDMETHOD.
 
 ENDCLASS.
+
+
+"! Covers map_value( ), which classifies a value against the rules of a parameter.
+"! <p>The rules are the same rows get_variant( ) turns into a range, read the other
+"! way round: instead of asking which values are in scope, the caller asks which
+"! bucket one value falls into.</p>
+"! <p>The comparison has to run in the configured DDIC type. On the stored 255
+"! character strings a <em>BT 9 AND 100</em> would reject 50, because '50' sorts below
+"! '9'. That is what {@link given_numeric_bt_then_typed} pins down.</p>
+CLASS ltc_mapping DEFINITION FINAL FOR TESTING
+  RISK LEVEL HARMLESS
+  DURATION SHORT.
+
+  PRIVATE SECTION.
+
+    CLASS-DATA sql_environment TYPE REF TO if_osql_test_environment.
+    DATA       cut             TYPE REF TO zif_da_variants.
+
+    CONSTANTS test_program   TYPE zif_da_variants=>ty_progname    VALUE 'TEST_PROG'      ##NO_TEXT.
+    CONSTANTS test_parameter TYPE zif_da_variants=>ty_parameterid VALUE 'UNIT_TEST'      ##NO_TEXT.
+    CONSTANTS numc_el        TYPE zif_da_variants=>ty_data_el     VALUE 'ZDE_DA_COUNTER' ##NO_TEXT.
+
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
+    METHODS setup RAISING cx_static_check.
+
+    " ----- the operators ----------------------------------------------------
+    "! An EQ rule maps the value it names.
+    METHODS given_eq_then_mapped          FOR TESTING RAISING cx_static_check.
+    "! A value no rule answers for must be reported as unmatched.
+    METHODS given_no_rule_then_unmatched  FOR TESTING RAISING cx_static_check.
+    "! Regression: BT must compare in the DDIC type, not on the stored string.
+    METHODS given_numeric_bt_then_typed   FOR TESTING RAISING cx_static_check.
+    "! A value outside the bounds of a BT rule must not map.
+    METHODS given_outside_bt_then_no_map  FOR TESTING RAISING cx_static_check.
+    "! GE answers for everything from its bound upwards.
+    METHODS given_ge_then_mapped          FOR TESTING RAISING cx_static_check.
+    "! A CP rule matches character wise, wildcards included.
+    METHODS given_pattern_then_mapped     FOR TESTING RAISING cx_static_check.
+
+    " ----- order and exclusion ----------------------------------------------
+    "! An exclude rule that answers first punches a hole into the range behind it.
+    METHODS given_excluded_then_no_map    FOR TESTING RAISING cx_static_check.
+    "! The same configuration must still map everything the hole does not cover.
+    METHODS given_not_excluded_then_map   FOR TESTING RAISING cx_static_check.
+    "! With two overlapping rules the lower counter decides.
+    METHODS given_overlap_then_first_wins FOR TESTING RAISING cx_static_check.
+
+    " ----- typing and error paths -------------------------------------------
+    "! The mapping value arrives converted into the caller's own type.
+    METHODS given_typed_target_then_conv  FOR TESTING RAISING cx_static_check.
+    "! An unknown parameter must raise instead of reporting no match.
+    METHODS given_unknown_param_then_err  FOR TESTING.
+
+    " ----- helpers ----------------------------------------------------------
+    METHODS insert_variant
+      IMPORTING counter       TYPE zif_da_variants=>ty_counter DEFAULT '00001'
+                sign          TYPE zde_da_sign                 DEFAULT 'I'
+                option        TYPE zde_da_opt                  DEFAULT 'EQ'
+                value         TYPE zif_da_variants=>ty_value   OPTIONAL
+                high_value    TYPE zif_da_variants=>ty_value   OPTIONAL
+                mapping_value TYPE zif_da_variants=>ty_value   OPTIONAL
+                data_element  TYPE zif_da_variants=>ty_data_el OPTIONAL.
+
+ENDCLASS.
+
+
+CLASS ltc_mapping IMPLEMENTATION.
+
+  METHOD class_setup.
+    sql_environment = cl_osql_test_environment=>create(
+                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
+                                                       ( 'ZDA_VARIANTS_D' ) ) ).
+  ENDMETHOD.
+
+  METHOD class_teardown.
+    sql_environment->destroy( ).
+  ENDMETHOD.
+
+  METHOD setup.
+    sql_environment->clear_doubles( ).
+    cut = NEW zcl_da_variants( ).
+  ENDMETHOD.
+
+
+  METHOD given_eq_then_mapped.
+
+    " given
+    insert_variant( value = 'CUST_STD' mapping_value = 'OR' ).
+
+    " when
+    DATA mapped TYPE zif_da_variants=>ty_value.
+    cut->map_value( EXPORTING parameter_id  = test_parameter
+                              program_name  = test_program
+                              input         = 'CUST_STD'
+                    IMPORTING mapping_value = mapped
+                              matched       = DATA(matched) ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = |X{ 'OR' }|
+        act = |{ matched }{ mapped }|
+        msg = 'An EQ rule must map the value it names' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_no_rule_then_unmatched.
+
+    " given
+    insert_variant( value = 'CUST_STD' mapping_value = 'OR' ).
+
+    " when
+    DATA mapped TYPE zif_da_variants=>ty_value.
+    cut->map_value( EXPORTING parameter_id  = test_parameter
+                              program_name  = test_program
+                              input         = 'SOMETHING_ELSE'
+                    IMPORTING mapping_value = mapped
+                              matched       = DATA(matched) ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = abap_false
+        act = matched
+        msg = 'A value no rule answers for must be reported as unmatched' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_numeric_bt_then_typed.
+
+    " given - on the stored strings '50' sorts below '9', in NUMC it does not
+    insert_variant( option       = 'BT'
+                    value        = '9'
+                    high_value   = '100'
+                    mapping_value = 'MID'
+                    data_element = numc_el ).
+
+    " when
+    DATA mapped TYPE zif_da_variants=>ty_value.
+    cut->map_value( EXPORTING parameter_id  = test_parameter
+                              program_name  = test_program
+                              input         = '50'
+                    IMPORTING mapping_value = mapped
+                              matched       = DATA(matched) ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = |X{ 'MID' }|
+        act = |{ matched }{ mapped }|
+        msg = 'BT must compare in the DDIC type, not on the stored string' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_outside_bt_then_no_map.
+
+    " given
+    insert_variant( option        = 'BT'
+                    value         = '9'
+                    high_value    = '100'
+                    mapping_value = 'MID'
+                    data_element  = numc_el ).
+
+    " when
+    cut->map_value( EXPORTING parameter_id = test_parameter
+                              program_name = test_program
+                              input        = '500'
+                    IMPORTING matched      = DATA(matched) ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = abap_false
+        act = matched
+        msg = 'A value outside the bounds must not map' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_ge_then_mapped.
+
+    " given
+    insert_variant( option        = 'GE'
+                    value         = '100'
+                    mapping_value = 'LARGE'
+                    data_element  = numc_el ).
+
+    " when
+    DATA mapped TYPE zif_da_variants=>ty_value.
+    cut->map_value( EXPORTING parameter_id  = test_parameter
+                              program_name  = test_program
+                              input         = '250'
+                    IMPORTING mapping_value = mapped
+                              matched       = DATA(matched) ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = |X{ 'LARGE' }|
+        act = |{ matched }{ mapped }|
+        msg = 'GE must answer for everything from its bound upwards' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_pattern_then_mapped.
+
+    " given
+    insert_variant( option        = 'CP'
+                    value         = 'CUST*'
+                    mapping_value = 'CUSTOMER' ).
+
+    " when
+    DATA mapped TYPE zif_da_variants=>ty_value.
+    cut->map_value( EXPORTING parameter_id  = test_parameter
+                              program_name  = test_program
+                              input         = 'CUST_RETURN'
+                    IMPORTING mapping_value = mapped
+                              matched       = DATA(matched) ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = |X{ 'CUSTOMER' }|
+        act = |{ matched }{ mapped }|
+        msg = 'A CP rule must match character wise, wildcards included' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_excluded_then_no_map.
+
+    " given - a hole is punched first, the range that maps follows behind it
+    insert_variant( counter      = '00001'
+                    sign         = 'E'
+                    option       = 'EQ'
+                    value        = '1500'
+                    data_element = numc_el ).
+
+    insert_variant( counter       = '00002'
+                    option        = 'BT'
+                    value         = '1000'
+                    high_value    = '1999'
+                    mapping_value = 'NORTH'
+                    data_element  = numc_el ).
+
+    " when
+    cut->map_value( EXPORTING parameter_id = test_parameter
+                              program_name = test_program
+                              input        = '1500'
+                    IMPORTING matched      = DATA(matched) ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = abap_false
+        act = matched
+        msg = 'An exclude rule that answers first must stop the search' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_not_excluded_then_map.
+
+    " given - the same configuration as the hole test
+    insert_variant( counter      = '00001'
+                    sign         = 'E'
+                    option       = 'EQ'
+                    value        = '1500'
+                    data_element = numc_el ).
+
+    insert_variant( counter       = '00002'
+                    option        = 'BT'
+                    value         = '1000'
+                    high_value    = '1999'
+                    mapping_value = 'NORTH'
+                    data_element  = numc_el ).
+
+    " when
+    DATA mapped TYPE zif_da_variants=>ty_value.
+    cut->map_value( EXPORTING parameter_id  = test_parameter
+                              program_name  = test_program
+                              input         = '1200'
+                    IMPORTING mapping_value = mapped
+                              matched       = DATA(matched) ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = |X{ 'NORTH' }|
+        act = |{ matched }{ mapped }|
+        msg = 'The hole must not swallow the rest of the range' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_overlap_then_first_wins.
+
+    " given - both rules answer for 50
+    insert_variant( counter       = '00001'
+                    option        = 'BT'
+                    value         = '1'
+                    high_value    = '99'
+                    mapping_value = 'FIRST'
+                    data_element  = numc_el ).
+
+    insert_variant( counter       = '00002'
+                    option        = 'BT'
+                    value         = '1'
+                    high_value    = '999'
+                    mapping_value = 'SECOND'
+                    data_element  = numc_el ).
+
+    " when
+    DATA mapped TYPE zif_da_variants=>ty_value.
+    cut->map_value( EXPORTING parameter_id  = test_parameter
+                              program_name  = test_program
+                              input         = '50'
+                    IMPORTING mapping_value = mapped ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = 'FIRST'
+        act = mapped
+        msg = 'With overlapping rules the lower counter must decide' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_typed_target_then_conv.
+
+    " given
+    insert_variant( value = 'CUST_STD' mapping_value = '1000' ).
+
+    " when - the caller keeps the mapping value in a number
+    DATA order_type TYPE i.
+    cut->map_value( EXPORTING parameter_id  = test_parameter
+                              program_name  = test_program
+                              input         = 'CUST_STD'
+                    IMPORTING mapping_value = order_type ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = 1000
+        act = order_type
+        msg = 'The mapping value must arrive in the caller own type' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_unknown_param_then_err.
+
+    TRY.
+        cut->map_value( EXPORTING parameter_id = 'DOES_NOT_EXIST'
+                                  program_name = test_program
+                                  input        = 'A'
+                        IMPORTING matched      = DATA(matched) ) ##NEEDED.
+
+        cl_abap_unit_assert=>fail( msg = 'An unknown parameter must raise ZCX_DA_VARIANTS' ).
+
+      CATCH zcx_da_variants.
+        " then - expected
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD insert_variant.
+
+    sql_environment->insert_test_data( VALUE zcl_da_variants=>ty_variants(
+      ( progname      = test_program
+        parameterid   = test_parameter
+        counter       = counter
+        is_active     = abap_true
+        sign          = sign
+        opt           = option
+        value         = value
+        high_value    = high_value
+        mapping_value = mapping_value
+        data_element  = data_element ) ) ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! Covers delete_variant( ), the counterpart of set_variant( ).
+"! <p>Removing rows that are not there is not an error, so that a seed or cleanup
+"! script can run twice without special casing.</p>
+CLASS ltc_delete DEFINITION FINAL FOR TESTING
+  RISK LEVEL HARMLESS
+  DURATION SHORT.
+
+  PRIVATE SECTION.
+
+    CLASS-DATA sql_environment TYPE REF TO if_osql_test_environment.
+    DATA       cut             TYPE REF TO zif_da_variants.
+
+    CONSTANTS test_program    TYPE zif_da_variants=>ty_progname    VALUE 'TEST_PROG' ##NO_TEXT.
+    CONSTANTS test_parameter  TYPE zif_da_variants=>ty_parameterid VALUE 'UNIT_TEST' ##NO_TEXT.
+    CONSTANTS other_parameter TYPE zif_da_variants=>ty_parameterid VALUE 'OTHER'     ##NO_TEXT.
+
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
+    METHODS setup RAISING cx_static_check.
+
+    "! A named counter removes exactly that row.
+    METHODS given_counter_then_one_gone   FOR TESTING RAISING cx_static_check.
+    "! Without a counter the whole parameter is removed.
+    METHODS given_no_counter_then_all     FOR TESTING RAISING cx_static_check.
+    "! Removing what is not there must report nothing, not raise.
+    METHODS given_unknown_then_zero       FOR TESTING RAISING cx_static_check.
+    "! Another parameter must survive untouched.
+    METHODS given_delete_then_others_kept FOR TESTING RAISING cx_static_check.
+    "! A removed variant must no longer be readable.
+    METHODS given_deleted_then_not_read   FOR TESTING.
+    "! Without a parameter the call must be refused.
+    METHODS given_no_parameter_then_error FOR TESTING.
+
+    METHODS insert_variant
+      IMPORTING counter      TYPE zif_da_variants=>ty_counter     DEFAULT '00001'
+                parameter_id TYPE zif_da_variants=>ty_parameterid DEFAULT test_parameter.
+
+    METHODS count_rows
+      IMPORTING parameter_id  TYPE zif_da_variants=>ty_parameterid DEFAULT test_parameter
+      RETURNING VALUE(result) TYPE i.
+
+ENDCLASS.
+
+
+CLASS ltc_delete IMPLEMENTATION.
+
+  METHOD class_setup.
+    sql_environment = cl_osql_test_environment=>create(
+                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
+                                                       ( 'ZDA_VARIANTS_D' ) ) ).
+  ENDMETHOD.
+
+  METHOD class_teardown.
+    sql_environment->destroy( ).
+  ENDMETHOD.
+
+  METHOD setup.
+    sql_environment->clear_doubles( ).
+    cut = NEW zcl_da_variants( ).
+  ENDMETHOD.
+
+
+  METHOD given_counter_then_one_gone.
+
+    " given
+    insert_variant( counter = '00001' ).
+    insert_variant( counter = '00002' ).
+
+    " when
+    DATA(removed) = cut->delete_variant( parameter_id = test_parameter
+                                         program_name = test_program
+                                         counter      = '00002' ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = |1{ 1 }|
+        act = |{ removed }{ count_rows( ) }|
+        msg = 'A named counter must remove exactly that row' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_no_counter_then_all.
+
+    " given
+    insert_variant( counter = '00001' ).
+    insert_variant( counter = '00002' ).
+    insert_variant( counter = '00003' ).
+
+    " when
+    DATA(removed) = cut->delete_variant( parameter_id = test_parameter
+                                         program_name = test_program ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = |3{ 0 }|
+        act = |{ removed }{ count_rows( ) }|
+        msg = 'Without a counter the whole parameter must be removed' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_unknown_then_zero.
+
+    " when - nothing was ever stored under this counter
+    DATA(removed) = cut->delete_variant( parameter_id = test_parameter
+                                         program_name = test_program
+                                         counter      = '00099' ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = 0
+        act = removed
+        msg = 'Removing what is not there must report nothing, not raise' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_delete_then_others_kept.
+
+    " given
+    insert_variant( counter = '00001' parameter_id = test_parameter ).
+    insert_variant( counter = '00001' parameter_id = other_parameter ).
+
+    " when
+    cut->delete_variant( parameter_id = test_parameter
+                         program_name = test_program ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = 1
+        act = count_rows( other_parameter )
+        msg = 'Another parameter must survive untouched' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_deleted_then_not_read.
+
+    " given
+    TRY.
+        insert_variant( ).
+        cut->delete_variant( parameter_id = test_parameter
+                             program_name = test_program ).
+
+      CATCH zcx_da_variants INTO DATA(delete_error).
+        cl_abap_unit_assert=>fail( msg = delete_error->get_text( ) ).
+    ENDTRY.
+
+    " when
+    TRY.
+        DATA value TYPE zif_da_variants=>ty_value.
+        cut->get_variant( EXPORTING parameter_id = test_parameter
+                                    program_name = test_program
+                          IMPORTING field_value  = value ).
+
+        cl_abap_unit_assert=>fail( msg = 'A removed variant must no longer be readable' ).
+
+      CATCH zcx_da_variants.
+        " then - expected
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_no_parameter_then_error.
+
+    TRY.
+        cut->delete_variant( parameter_id = space
+                             program_name = test_program ) ##NEEDED.
+
+        cl_abap_unit_assert=>fail( msg = 'A delete without a parameter must be refused' ).
+
+      CATCH zcx_da_variants.
+        " then - expected
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD insert_variant.
+
+    sql_environment->insert_test_data( VALUE zcl_da_variants=>ty_variants(
+      ( progname    = test_program
+        parameterid = parameter_id
+        counter     = counter
+        is_active   = abap_true
+        sign        = 'I'
+        opt         = 'EQ'
+        value       = 'A' ) ) ).
+
+  ENDMETHOD.
+
+
+  METHOD count_rows.
+
+    SELECT FROM zda_variants
+      FIELDS COUNT( * )
+      WHERE progname    = @test_program
+        AND parameterid = @parameter_id
+      INTO @result.
+
+  ENDMETHOD.
+
+ENDCLASS.

@@ -130,25 +130,25 @@
     <item>
      <ID>I</ID>
      <KEY>020</KEY>
-     <ENTRY>Value cannot be converted to data element</ENTRY>
+     <ENTRY>Value cannot be converted:</ENTRY>
      <LENGTH>82</LENGTH>
     </item>
     <item>
      <ID>I</ID>
      <KEY>021</KEY>
-     <ENTRY>Value does not fit its data element without loss</ENTRY>
+     <ENTRY>Value does not fit element:</ENTRY>
      <LENGTH>96</LENGTH>
     </item>
     <item>
      <ID>I</ID>
      <KEY>022</KEY>
-     <ENTRY>Value is not a valid date for data element</ENTRY>
+     <ENTRY>Value is not a valid date:</ENTRY>
      <LENGTH>84</LENGTH>
     </item>
     <item>
      <ID>I</ID>
      <KEY>023</KEY>
-     <ENTRY>Value is not a valid time for data element</ENTRY>
+     <ENTRY>Value is not a valid time:</ENTRY>
      <LENGTH>84</LENGTH>
     </item>
    </TPOOL>

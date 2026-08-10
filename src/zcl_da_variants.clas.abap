@@ -37,8 +37,10 @@ CLASS zcl_da_variants DEFINITION
     ALIASES opt_gt    FOR zif_da_variants~opt_gt.
     ALIASES opt_ge    FOR zif_da_variants~opt_ge.
 
-    ALIASES get_variant FOR zif_da_variants~get_variant.
-    ALIASES set_variant FOR zif_da_variants~set_variant.
+    ALIASES get_variant    FOR zif_da_variants~get_variant.
+    ALIASES set_variant    FOR zif_da_variants~set_variant.
+    ALIASES map_value      FOR zif_da_variants~map_value.
+    ALIASES delete_variant FOR zif_da_variants~delete_variant.
 
     "! Creates the framework on the default configuration table, or on an injected one.
     "! <p>An injected table must be structurally identical to {@link ZDA_VARIANTS}
@@ -96,6 +98,21 @@ CLASS zcl_da_variants DEFINITION
     CONSTANTS max_attempts TYPE i VALUE 5.
 
     TYPES ty_month_lengths TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+
+    " variant-opt and variant-sign carry the base type of the enumerations, and an
+    " enumerated value can only be compared with its own enumerated type, so the
+    " operators the rule evaluation needs are declared once in the base type here
+    CONSTANTS base_exclude TYPE ty_base_sign VALUE 'E'  ##NO_TEXT.
+    CONSTANTS base_eq      TYPE ty_base_opt  VALUE 'EQ' ##NO_TEXT.
+    CONSTANTS base_ne      TYPE ty_base_opt  VALUE 'NE' ##NO_TEXT.
+    CONSTANTS base_bt      TYPE ty_base_opt  VALUE 'BT' ##NO_TEXT.
+    CONSTANTS base_nb      TYPE ty_base_opt  VALUE 'NB' ##NO_TEXT.
+    CONSTANTS base_cp      TYPE ty_base_opt  VALUE 'CP' ##NO_TEXT.
+    CONSTANTS base_np      TYPE ty_base_opt  VALUE 'NP' ##NO_TEXT.
+    CONSTANTS base_lt      TYPE ty_base_opt  VALUE 'LT' ##NO_TEXT.
+    CONSTANTS base_le      TYPE ty_base_opt  VALUE 'LE' ##NO_TEXT.
+    CONSTANTS base_gt      TYPE ty_base_opt  VALUE 'GT' ##NO_TEXT.
+    CONSTANTS base_ge      TYPE ty_base_opt  VALUE 'GE' ##NO_TEXT.
 
     CONSTANTS digits      TYPE string VALUE `0123456789` ##NO_TEXT.
     CONSTANTS date_length TYPE i VALUE 8.
@@ -392,6 +409,47 @@ CLASS zcl_da_variants DEFINITION
       RETURNING VALUE(result) TYPE abap_boolean
       RAISING   zcx_da_variants.
 
+    "! Answers whether one rule accepts the input value.
+    "! @parameter variant         | Rule to evaluate, carries sign, option and bounds
+    "! @parameter input           | Value to classify
+    "! @parameter element         | Type the comparison runs in
+    "! @parameter result          | <em>abap_true</em> when the rule answers
+    "! @raising   zcx_da_variants | A bound or the input does not convert
+    CLASS-METHODS matches
+      IMPORTING variant       TYPE ty_variant
+                input         TYPE ty_value
+                element       TYPE REF TO cl_abap_elemdescr
+      RETURNING VALUE(result) TYPE abap_boolean
+      RAISING   zcx_da_variants.
+
+    "! Compares input and lower bound in the configured type.
+    "! <p>Comparing in the DDIC type is what keeps 9 below 100. On the stored
+    "! 255 character strings the same comparison would answer the other way.</p>
+    "! @parameter variant         | Rule to evaluate
+    "! @parameter input           | Value to classify
+    "! @parameter element         | Type the comparison runs in
+    "! @parameter result          | <em>abap_true</em> when the rule answers
+    "! @raising   zcx_da_variants | A bound or the input does not convert
+    CLASS-METHODS matches_typed
+      IMPORTING variant       TYPE ty_variant
+                input         TYPE ty_value
+                element       TYPE REF TO cl_abap_elemdescr
+      RETURNING VALUE(result) TYPE abap_boolean
+      RAISING   zcx_da_variants.
+
+    "! Evaluates the two sided operators BT and NB in the configured type.
+    "! @parameter variant         | Rule to evaluate, must carry both bounds
+    "! @parameter input           | Value to classify
+    "! @parameter element         | Type the comparison runs in
+    "! @parameter result          | <em>abap_true</em> when the rule answers
+    "! @raising   zcx_da_variants | A bound or the input does not convert
+    CLASS-METHODS matches_bounds
+      IMPORTING variant       TYPE ty_variant
+                input         TYPE ty_value
+                element       TYPE REF TO cl_abap_elemdescr
+      RETURNING VALUE(result) TYPE abap_boolean
+      RAISING   zcx_da_variants.
+
 ENDCLASS.
 
 
@@ -522,6 +580,175 @@ CLASS zcl_da_variants IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD zif_da_variants~map_value.
+
+    CLEAR: mapping_value, matched.
+
+    DATA(parameter) = CONV ty_parameterid( to_upper( parameter_id ) ).
+    DATA(program)   = CONV ty_progname( to_upper(
+                          COND #( WHEN program_name IS NOT INITIAL
+                                  THEN program_name
+                                  ELSE default_program ) ) ).
+
+    DATA(variants) = read_variants( parameter_id = parameter
+                                    program_name = program ).
+
+    " every row of one parameter shares the type, read_variants( ) has checked that
+    DATA(first_variant) = VALUE ty_variant( variants[ 1 ] OPTIONAL ).
+    DATA(element)       = resolve_element_type( data_element = first_variant-data_element
+                                                sample_value = first_variant-value ).
+
+    LOOP AT variants INTO DATA(variant).
+
+      IF matches( variant = variant
+                  input   = input
+                  element = element ) = abap_false.
+        CONTINUE.
+      ENDIF.
+
+      " the first rule that answers decides, whether it includes or excludes
+      IF variant-sign = base_exclude.
+        RETURN.
+      ENDIF.
+
+      TRY.
+          IF mapping_value IS REQUESTED.
+            mapping_value = variant-mapping_value.
+          ENDIF.
+
+        CATCH cx_sy_conversion_error INTO DATA(conversion_error).
+          RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
+                                               previous = conversion_error ).
+      ENDTRY.
+
+      matched = abap_true.
+      RETURN.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD matches.
+
+    " a pattern is character matching and stays on the stored strings
+    IF variant-opt = base_cp.
+      result = xsdbool( input CP variant-value ).
+      RETURN.
+    ENDIF.
+
+    IF variant-opt = base_np.
+      result = xsdbool( input NP variant-value ).
+      RETURN.
+    ENDIF.
+
+    result = matches_typed( variant = variant
+                            input   = input
+                            element = element ).
+
+  ENDMETHOD.
+
+
+  METHOD matches_typed.
+
+    IF variant-opt = base_bt OR variant-opt = base_nb.
+      result = matches_bounds( variant = variant
+                               input   = input
+                               element = element ).
+      RETURN.
+    ENDIF.
+
+    DATA(typed_input) = check_convertible( value        = input
+                                           data_element = variant-data_element
+                                           element      = element ).
+
+    DATA(typed_low)   = check_convertible( value        = variant-value
+                                           data_element = variant-data_element
+                                           element      = element ).
+
+    ASSIGN typed_input->* TO FIELD-SYMBOL(<input>).
+    ASSIGN typed_low->*   TO FIELD-SYMBOL(<low>).
+
+    CASE variant-opt.
+      WHEN base_eq. result = xsdbool( <input> =  <low> ).
+      WHEN base_ne. result = xsdbool( <input> <> <low> ).
+      WHEN base_lt. result = xsdbool( <input> <  <low> ).
+      WHEN base_le. result = xsdbool( <input> <= <low> ).
+      WHEN base_gt. result = xsdbool( <input> >  <low> ).
+      WHEN base_ge. result = xsdbool( <input> >= <low> ).
+      WHEN OTHERS. result = abap_false.
+    ENDCASE.
+
+  ENDMETHOD.
+
+
+  METHOD matches_bounds.
+
+    DATA(typed_input) = check_convertible( value        = input
+                                           data_element = variant-data_element
+                                           element      = element ).
+
+    DATA(typed_low)   = check_convertible( value        = variant-value
+                                           data_element = variant-data_element
+                                           element      = element ).
+
+    DATA(typed_high)  = check_convertible( value        = variant-high_value
+                                           data_element = variant-data_element
+                                           element      = element ).
+
+    ASSIGN typed_input->* TO FIELD-SYMBOL(<input>).
+    ASSIGN typed_low->*   TO FIELD-SYMBOL(<low>).
+    ASSIGN typed_high->*  TO FIELD-SYMBOL(<high>).
+
+    DATA(inside) = xsdbool( <input> >= <low> AND <input> <= <high> ).
+
+    result = COND #( WHEN variant-opt = base_nb
+                     THEN xsdbool( inside = abap_false )
+                     ELSE inside ).
+
+  ENDMETHOD.
+
+
+  METHOD zif_da_variants~delete_variant.
+
+    DATA(parameter) = CONV ty_parameterid( to_upper( parameter_id ) ).
+    DATA(program)   = CONV ty_progname( to_upper(
+                          COND #( WHEN program_name IS NOT INITIAL
+                                  THEN program_name
+                                  ELSE default_program ) ) ).
+
+    " without a parameter this would clear whatever happens to have a blank key
+    IF parameter IS INITIAL.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-017 }| ).
+    ENDIF.
+
+    TRY.
+        IF counter IS INITIAL.
+          DELETE FROM (me->configuration_table)
+            WHERE progname    = @program
+              AND parameterid = @parameter.
+        ELSE.
+          DELETE FROM (me->configuration_table)
+            WHERE progname    = @program
+              AND parameterid = @parameter
+              AND counter     = @counter.
+        ENDIF.
+
+      CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(sql_error).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-010 } { sql_error->get_text( ) }|
+                                             previous = sql_error ).
+    ENDTRY.
+
+    " removing what is not there is not an error, a cleanup script may run twice
+    result = sy-dbcnt.
+
+    IF commit = abap_true.
+      COMMIT WORK.
+    ENDIF.
+
+  ENDMETHOD.
+
+
   METHOD read_variants.
 
     TRY.
@@ -642,9 +869,8 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
       CATCH cx_sy_conversion_error INTO DATA(conversion_error).
         CLEAR range.
-        RAISE EXCEPTION NEW zcx_da_variants(
-                  text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
-                  previous = conversion_error ).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
+                                             previous = conversion_error ).
     ENDTRY.
 
   ENDMETHOD.
@@ -660,9 +886,8 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
       CATCH cx_sy_conversion_error INTO DATA(conversion_error).
         CLEAR values.
-        RAISE EXCEPTION NEW zcx_da_variants(
-                  text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
-                  previous = conversion_error ).
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
+                                             previous = conversion_error ).
     ENDTRY.
 
   ENDMETHOD.
@@ -873,9 +1098,10 @@ CLASS zcl_da_variants IMPLEMENTATION.
         <target> = value.
 
       CATCH cx_sy_conversion_error cx_sy_create_data_error INTO DATA(conversion_error).
-        RAISE EXCEPTION NEW zcx_da_variants(
-                  text     = |{ TEXT-020 } { data_element }: { conversion_error->get_text( ) }|
-                  previous = conversion_error ).
+        " the cause travels in the exception chain, the text has to stay short
+        " enough for the message variable that carries it into the Fiori application
+        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-020 } { condense( CONV string( data_element ) ) }|
+                                             previous = conversion_error ).
     ENDTRY.
 
   ENDMETHOD.
@@ -896,7 +1122,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
     IF normalized( value = stored type_kind = element->type_kind )
        <> normalized( value = value type_kind = element->type_kind ).
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-021 } { data_element }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-021 } { condense( CONV string( data_element ) ) }| ).
     ENDIF.
 
   ENDMETHOD.
@@ -918,6 +1144,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
     " a date field is character like, so an impossible day is copied straight in
     DATA(text) = condense( CONV string( value ) ).
+    DATA(element_name) = condense( CONV string( data_element ) ).
 
     IF strlen( text ) <> date_length OR text CN digits.
       RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { data_element }| ).
@@ -928,11 +1155,11 @@ CLASS zcl_da_variants IMPLEMENTATION.
     DATA(day)   = CONV i( substring( val = text off = 6 len = 2 ) ).
 
     IF year < 1 OR year > max_year OR month < 1 OR month > max_month.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { data_element }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { element_name }| ).
     ENDIF.
 
     IF day < 1 OR day > last_day_of_month( year = year month = month ).
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { data_element }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { element_name }| ).
     ENDIF.
 
   ENDMETHOD.
@@ -941,6 +1168,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
   METHOD check_time.
 
     DATA(text) = condense( CONV string( value ) ).
+    DATA(element_name) = condense( CONV string( data_element ) ).
 
     IF strlen( text ) <> time_length OR text CN digits.
       RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-023 } { data_element }| ).
@@ -951,7 +1179,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
     DATA(seconds) = CONV i( substring( val = text off = 4 len = 2 ) ).
 
     IF hours > max_hour OR minutes > max_minute OR seconds > max_second.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-023 } { data_element }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-023 } { element_name }| ).
     ENDIF.
 
   ENDMETHOD.
@@ -1140,5 +1368,3 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   ENDMETHOD.
 ENDCLASS.
-
-

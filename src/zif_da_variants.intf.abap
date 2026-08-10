@@ -115,4 +115,47 @@ INTERFACE zif_da_variants
               commit               TYPE abap_boolean   DEFAULT abap_false
     RAISING   zcx_da_variants.
 
+  "! Classifies a value against the range lines of a parameter.
+  "! <p>Where get_variant( ) answers <em>"which values are in scope"</em>, this answers
+  "! <em>"which bucket does X fall into"</em>. Every active row is a rule, evaluated in
+  "! counter order, with the operator and the bounds it carries.</p>
+  "! <p>The comparison runs in the configured DDIC type, so a <em>BT 9 AND 100</em> on a
+  "! numeric element matches 50, which a character comparison would miss. Patterns
+  "! (<em>CP</em>, <em>NP</em>) always compare character wise.</p>
+  "! <p>The first rule that answers decides. A rule with <em>sign_exclude</em> that answers
+  "! stops the search and reports no match, which is how a hole is punched into a
+  "! range that otherwise maps as a whole.</p>
+  "!
+  "! @parameter parameter_id    | Parameter holding the rules, case insensitive
+  "! @parameter program_name    | Program scope, defaults to <em>GLOBAL</em>
+  "! @parameter input           | Value to classify
+  "! @parameter mapping_value   | Mapping value of the rule that matched
+  "! @parameter matched         | <em>abap_true</em> when a rule included the input
+  "! @raising   zcx_da_variants | The parameter is unknown, or a value does not convert
+  METHODS map_value
+    IMPORTING parameter_id  TYPE ty_parameterid
+              program_name  TYPE ty_progname OPTIONAL
+              input         TYPE ty_value
+    EXPORTING mapping_value TYPE any
+              matched       TYPE abap_boolean
+    RAISING   zcx_da_variants.
+
+  "! Removes one variant, or every variant of a parameter. The caller owns the LUW.
+  "! <p>Leave <em>counter</em> initial to remove the whole parameter. Deleting rows that
+  "! are not there is not an error, so a cleanup script can run twice.</p>
+  "!
+  "! @parameter parameter_id    | Parameter to remove from, case insensitive
+  "! @parameter program_name    | Program scope, defaults to <em>GLOBAL</em>
+  "! @parameter counter         | Row to remove, initial for the whole parameter
+  "! @parameter commit          | Commit the LUW, defaults to <em>abap_false</em>
+  "! @parameter result          | Number of rows that were removed
+  "! @raising   zcx_da_variants | No parameter was named, or the database refused
+  METHODS delete_variant
+    IMPORTING parameter_id  TYPE ty_parameterid
+              program_name  TYPE ty_progname  OPTIONAL
+              counter       TYPE ty_counter   OPTIONAL
+              commit        TYPE abap_boolean DEFAULT abap_false
+    RETURNING VALUE(result) TYPE i
+    RAISING   zcx_da_variants.
+
 ENDINTERFACE.
