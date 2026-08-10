@@ -17,13 +17,15 @@ bypassing hardcoded values and the rigid standard TVARVC table.
 1. [License](#license)
 2. [Contributors-Developers](#contributors-developers)
 3. [Key Benefits](#key-benefits)
-4. [Prerequisites](#prerequisites)
-5. [Installation](#installation)
-6. [Authorization](#authorization)
-7. [Usage](#usage)
-8. [The configuration table](#the-configuration-table)
-9. [Running the tests](#running-the-tests)
-10. [Contributing](#contributing)
+4. [What's new in 2.1.0](#whats-new-in-210)
+5. [Prerequisites](#prerequisites)
+6. [Installation](#installation)
+7. [Authorization](#authorization)
+8. [Usage](#usage)
+9. [The configuration table](#the-configuration-table)
+10. [Running the tests](#running-the-tests)
+11. [Known limitations](#known-limitations)
+12. [Contributing](#contributing)
 
 ## License
 This project is licensed under the [MIT License](https://github.com/greltel/abap-dynamic-assignment/blob/main/LICENSE).
@@ -39,13 +41,45 @@ The repository was created by [George Drakos](https://www.linkedin.com/in/george
   Production without a Transport Request.
 * **RTTS:** Builds single values, range tables (ready for `SELECT ... IN`) and mapping tables at runtime.
   Every value is converted into the type of the caller's own variable.
+* **Classification, not only lookup:** `map_value` runs the configured rules against one value and
+  answers which bucket it falls into, comparing in the configured DDIC type rather than on strings.
+* **Validated on write:** A value its data element could not hold unchanged is refused when it is
+  stored, instead of surfacing months later in whichever program reads it first. The Fiori application
+  and the programmatic API run the same check, through the same code.
 * **ABAP Cloud:** Written for ABAP for Cloud Development.
 * **Testable:** The public surface sits behind `ZIF_DA_VARIANTS`, so consumers can mock the framework
   with `cl_abap_testdouble` instead of setting up a database.
-* **Unit Tested:** 67 ABAP Unit tests across five test classes, using the OSQL Test Double Framework
-  for zero database footprint.
+* **Unit Tested:** 123 ABAP Unit tests across eleven test classes. The OSQL Test Double Framework keeps
+  the database out of the picture, `cl_abap_testdouble` does the same for the RAP query interfaces.
 * **Fiori Elements App** built with RAP, including validations, defaults, draft handling and
   authorization checks.
+
+## What's new in 2.1.0
+
+**New capabilities**
+
+* `map_value` classifies a value against the configured rules and returns what it maps to.
+* `delete_variant` removes one row or a whole parameter, and reports how many rows it removed.
+* Values are checked against their data element on write, through the API and the Fiori application.
+
+**Corrections**
+
+* An append no longer replaces a stored row. The counter is allocated and the row is inserted, with a
+  retry when another LUW takes the number in between.
+* An exhausted counter range is reported instead of wrapping around to `00000`, both in the API and in
+  the early numbering of the Fiori application.
+* A stored value that does not fit the caller's target is reported as `ZCX_DA_VARIANTS` instead of
+  ending in a short dump.
+* Mapping types are checked for consistency, and the mapping column is typed from the first row that
+  actually maps a value, not from the first row of the parameter.
+* The programmatic API enforces the same rules as the Fiori application: mandatory `Parameterid` and
+  `Value`, and no upper bound on an operator that has none.
+
+**Coverage**
+
+* Unit tests for both value help query providers, including the paging contract that a missing
+  `get_paging( )` turns into a 501 at runtime.
+* An abaplint workflow runs on every push and pull request.
 
 ## Prerequisites
 
@@ -88,9 +122,10 @@ Build two PFCG roles — most users only need to see what is configured:
 > `aspect pfcg_auth ( ZDA_VAR, ZDA_PROG, ACTVT = '03' )`, and RAP reads the instance before every
 > update or delete. Without `03` the user sees "record not found" while holding change authorization.
 
-> **The DCL protects the Fiori application, not `get_variant`.** The class reads the table directly,
-> so a background job is never filtered by the authorizations of a user. That is intentional —
-> a scheduled job must not depend on who happens to be logged on.
+> **The DCL protects the Fiori application, not the programmatic API.** `get_variant` reads the table
+> directly, so a background job is never filtered by the authorizations of a user. That is intentional —
+> a scheduled job must not depend on who happens to be logged on. `set_variant` and `delete_variant`
+> write for the same reason, without an authority check. Know that before you expose them.
 
 ## Usage
 
@@ -163,9 +198,20 @@ ENDTRY.
 > **Seed data is idempotent.** Passing an existing `counter` replaces that row instead of appending
 > a new one, so a load script can run twice without duplicating configuration.
 
-`set_variant` rejects a variant that the framework would not be able to read back: an unknown or
-non-elementary data element, and `BT` or `NB` without an upper bound. The Fiori application enforces
-the same rules through RAP validations.
+`set_variant` rejects anything the framework would not be able to read back: a missing `Parameterid`
+or `Value`, an unknown or non-elementary data element, `BT` or `NB` without an upper bound, and an
+upper bound on any other operator. The Fiori application enforces the same rules through the same
+code, so both doors accept exactly the same rows.
+
+> **The value has to fit its data element.** `1000` configured against a one character element would
+> come back as `1`, and `ABC` against a `NUMC` element would come back as zeros. Both are refused on
+> write. The check knows what each type loses in silence: `CHAR` truncates on the right, `NUMC` keeps
+> only the digits, and a date field is character like, so `20240230` would be copied straight in as a
+> day that does not exist. Leading zeros that `NUMC` adds by itself are not a loss and stay accepted.
+
+> **Appending never overwrites.** Without a `counter` the row is inserted, never replaced. If another
+> LUW takes the number in between, the next one is allocated and the insert is repeated. An exhausted
+> counter range is reported as an error, not wrapped around to `00000`.
 
 ### Removing variants
 
@@ -287,7 +333,7 @@ listed packages.
 | `DATA_ELEMENT` | DDIC type of the value. Empty means the native column type |
 | `MAPPING_VALUE` | The value this row translates to |
 | `MAPPING_DATA_EL` | DDIC type of the mapping value |
-| `DESCRIPTION` | Free text, generated when left empty |
+| `DESCRIPTION` | Free text. `set_variant` generates one when it is left empty |
 
 Administrative fields are filled by the RAP framework and by `set_variant`.
 
@@ -319,6 +365,8 @@ Static checks, locally or in CI:
 npm install -g @abaplint/cli
 abaplint
 ```
+
+The same check runs on every push and pull request through `.github/workflows/abaplint.yml`.
 
 ## Known limitations
 
