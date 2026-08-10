@@ -17,15 +17,14 @@ bypassing hardcoded values and the rigid standard TVARVC table.
 1. [License](#license)
 2. [Contributors-Developers](#contributors-developers)
 3. [Key Benefits](#key-benefits)
-4. [What's new in 2.1.0](#whats-new-in-210)
-5. [Prerequisites](#prerequisites)
-6. [Installation](#installation)
-7. [Authorization](#authorization)
-8. [Usage](#usage)
-9. [The configuration table](#the-configuration-table)
-10. [Running the tests](#running-the-tests)
-11. [Known limitations](#known-limitations)
-12. [Contributing](#contributing)
+4. [Prerequisites](#prerequisites)
+5. [Installation](#installation)
+6. [Authorization](#authorization)
+7. [Usage](#usage)
+8. [The configuration table](#the-configuration-table)
+9. [Running the tests](#running-the-tests)
+10. [Known limitations](#known-limitations)
+11. [Contributing](#contributing)
 
 ## License
 This project is licensed under the [MIT License](https://github.com/greltel/abap-dynamic-assignment/blob/main/LICENSE).
@@ -53,33 +52,6 @@ The repository was created by [George Drakos](https://www.linkedin.com/in/george
   the database out of the picture, `cl_abap_testdouble` does the same for the RAP query interfaces.
 * **Fiori Elements App** built with RAP, including validations, defaults, draft handling and
   authorization checks.
-
-## What's new in 2.1.0
-
-**New capabilities**
-
-* `map_value` classifies a value against the configured rules and returns what it maps to.
-* `delete_variant` removes one row or a whole parameter, and reports how many rows it removed.
-* Values are checked against their data element on write, through the API and the Fiori application.
-
-**Corrections**
-
-* An append no longer replaces a stored row. The counter is allocated and the row is inserted, with a
-  retry when another LUW takes the number in between.
-* An exhausted counter range is reported instead of wrapping around to `00000`, both in the API and in
-  the early numbering of the Fiori application.
-* A stored value that does not fit the caller's target is reported as `ZCX_DA_VARIANTS` instead of
-  ending in a short dump.
-* Mapping types are checked for consistency, and the mapping column is typed from the first row that
-  actually maps a value, not from the first row of the parameter.
-* The programmatic API enforces the same rules as the Fiori application: mandatory `Parameterid` and
-  `Value`, and no upper bound on an operator that has none.
-
-**Coverage**
-
-* Unit tests for both value help query providers, including the paging contract that a missing
-  `get_paging( )` turns into a 501 at runtime.
-* An abaplint workflow runs on every push and pull request.
 
 ## Prerequisites
 
