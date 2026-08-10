@@ -34,6 +34,8 @@ CLASS ltc_numbering DEFINITION FINAL FOR TESTING
     METHODS given_two_keys_then_own_ctr  FOR TESTING RAISING cx_static_check.
     "! A draft that is not yet activated must still block its counter.
     METHODS given_draft_then_next_ctr    FOR TESTING RAISING cx_static_check.
+    "! An exhausted key range must be reported, not wrapped around to 00000.
+    METHODS given_counter_full_then_fail FOR TESTING RAISING cx_static_check.
 
     METHODS insert_variant
       IMPORTING parameter_id TYPE zda_variants-parameterid
@@ -191,6 +193,34 @@ CLASS ltc_numbering IMPLEMENTATION.
         exp = '00002'
         act = mapped-variants[ %cid = 'C1' ]-Counter
         msg = 'A pending draft must not hand its counter to the next variant' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_counter_full_then_fail.
+
+    " given - the last counter the NUMC(5) key can hold is already allocated
+    insert_variant( parameter_id = test_parameter counter = '99999' ).
+
+    " when
+    MODIFY ENTITIES OF zi_da_variants
+      ENTITY Variants
+      CREATE FIELDS ( Progname Parameterid Value )
+      WITH VALUE #( ( %cid        = 'C1'
+                      Progname    = test_program
+                      Parameterid = test_parameter
+                      Value       = 'A' ) )
+      MAPPED DATA(mapped)
+      FAILED DATA(failed).
+
+    " then
+    cl_abap_unit_assert=>assert_not_initial(
+        act = failed-variants
+        msg = 'A create that cannot be numbered must be reported as failed' ).
+
+    cl_abap_unit_assert=>assert_initial(
+        act = mapped-variants
+        msg = 'The counter must never wrap around to 00000' ).
 
   ENDMETHOD.
 
@@ -369,6 +399,7 @@ CLASS ltc_validations DEFINITION FINAL FOR TESTING
     CONSTANTS elementary_el TYPE zda_variants-data_element   VALUE 'ZDE_DA_SIGN'  ##NO_TEXT.
     CONSTANTS structured_el TYPE zda_variants-data_element   VALUE 'ZDA_VARIANTS' ##NO_TEXT.
     CONSTANTS unknown_el    TYPE zda_variants-data_element   VALUE 'ZDE_NO_SUCH'  ##NO_TEXT.
+    CONSTANTS numeric_el    TYPE zda_variants-data_element   VALUE 'ZDE_DA_COUNTER' ##NO_TEXT.
 
     CLASS-METHODS class_setup.
     CLASS-METHODS class_teardown.
@@ -396,8 +427,19 @@ CLASS ltc_validations DEFINITION FINAL FOR TESTING
     "! A variant without any data element must pass.
     METHODS given_no_element_then_ok     FOR TESTING RAISING cx_static_check.
 
+    " ----- the value has to fit the element it is configured with -----------
+    "! Text in a NUMC element is filtered to zeros and must be rejected.
+    METHODS given_text_in_numc_then_fail FOR TESTING RAISING cx_static_check.
+    "! A value longer than its CHAR element is truncated and must be rejected.
+    METHODS given_long_value_then_fail   FOR TESTING RAISING cx_static_check.
+    "! The mapping value must fit its own mapping data element.
+    METHODS given_bad_map_value_then_fail FOR TESTING RAISING cx_static_check.
+    "! A value that fits its element exactly must still pass.
+    METHODS given_fitting_value_then_ok  FOR TESTING RAISING cx_static_check.
+
     METHODS save_variant
-      IMPORTING high_value      TYPE zda_variants-high_value      OPTIONAL
+      IMPORTING value           TYPE zda_variants-value           DEFAULT 'A'
+                high_value      TYPE zda_variants-high_value      OPTIONAL
                 option          TYPE zde_da_opt                   DEFAULT 'EQ'
                 data_element    TYPE zda_variants-data_element    OPTIONAL
                 mapping_value   TYPE zda_variants-mapping_value   OPTIONAL
@@ -560,6 +602,62 @@ CLASS ltc_validations IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD given_text_in_numc_then_fail.
+
+    save_variant( EXPORTING value        = 'ABC'
+                            data_element = numeric_el
+                  IMPORTING has_failure  = DATA(has_failure) ).
+
+    cl_abap_unit_assert=>assert_equals(
+        exp = abap_true
+        act = has_failure
+        msg = 'Text in a NUMC element is filtered to zeros and must be rejected' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_long_value_then_fail.
+
+    save_variant( EXPORTING value        = 'IE'
+                            data_element = elementary_el
+                  IMPORTING has_failure  = DATA(has_failure) ).
+
+    cl_abap_unit_assert=>assert_equals(
+        exp = abap_true
+        act = has_failure
+        msg = 'A value longer than its CHAR element is truncated and must be rejected' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_bad_map_value_then_fail.
+
+    save_variant( EXPORTING mapping_value   = 'LONG'
+                            mapping_data_el = elementary_el
+                  IMPORTING has_failure     = DATA(has_failure) ).
+
+    cl_abap_unit_assert=>assert_equals(
+        exp = abap_true
+        act = has_failure
+        msg = 'The mapping value must fit its own mapping data element' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_fitting_value_then_ok.
+
+    save_variant( EXPORTING value        = 'I'
+                            data_element = elementary_el
+                  IMPORTING has_failure  = DATA(has_failure) ).
+
+    cl_abap_unit_assert=>assert_equals(
+        exp = abap_false
+        act = has_failure
+        msg = 'A value that fits its element exactly must pass' ).
+
+  ENDMETHOD.
+
+
   METHOD save_variant.
 
     CLEAR: has_failure, has_message.
@@ -575,7 +673,7 @@ CLASS ltc_validations IMPLEMENTATION.
       WITH VALUE #( ( %cid               = 'C1'
                       Progname           = test_program
                       Parameterid        = parameter
-                      Value              = 'A'
+                      Value              = value
                       Opt                = option
                       HighValue          = high_value
                       DataElement        = data_element

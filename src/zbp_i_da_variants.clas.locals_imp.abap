@@ -18,6 +18,14 @@ CLASS lhc_variants DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     TYPES ty_element_checks TYPE STANDARD TABLE OF ty_element_check WITH EMPTY KEY.
 
+    TYPES: BEGIN OF ty_value_check,
+             value   TYPE zda_variants-value,
+             element TYPE zda_variants-data_element,
+             target  TYPE string,
+           END OF ty_value_check.
+
+    TYPES ty_value_checks TYPE STANDARD TABLE OF ty_value_check WITH EMPTY KEY.
+
     CONSTANTS activity_create TYPE c LENGTH 2 VALUE '01' ##NO_TEXT.
     CONSTANTS activity_change TYPE c LENGTH 2 VALUE '02' ##NO_TEXT.
     CONSTANTS activity_delete TYPE c LENGTH 2 VALUE '06' ##NO_TEXT.
@@ -29,29 +37,35 @@ CLASS lhc_variants DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     CONSTANTS state_area_elements TYPE string VALUE `VALIDATE_DATA_ELEMENTS` ##NO_TEXT.
     CONSTANTS state_area_range    TYPE string VALUE `VALIDATE_RANGE`         ##NO_TEXT.
+    CONSTANTS state_area_values   TYPE string VALUE `VALIDATE_VALUE_TYPES`   ##NO_TEXT.
+
+    CONSTANTS element_value   TYPE string VALUE `VALUE`        ##NO_TEXT.
+    CONSTANTS element_high    TYPE string VALUE `HIGHVALUE`    ##NO_TEXT.
+    CONSTANTS element_mapping TYPE string VALUE `MAPPINGVALUE` ##NO_TEXT.
+
+    "! Highest counter the NUMC(5) key can hold.
+    CONSTANTS max_counter TYPE zda_variants-counter VALUE '99999' ##NO_TEXT.
 
     METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
-      IMPORTING REQUEST requested_authorizations FOR Variants RESULT result.
+      IMPORTING REQUEST requested_authorizations FOR variants RESULT result.
 
     METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
-      IMPORTING keys REQUEST requested_authorizations FOR Variants RESULT result.
+      IMPORTING keys REQUEST requested_authorizations FOR variants RESULT result.
 
     METHODS earlynumbering_create FOR NUMBERING
-      IMPORTING entities FOR CREATE Variants.
+      IMPORTING entities FOR CREATE variants.
 
-    METHODS setDefaults FOR DETERMINE ON MODIFY
-      IMPORTING keys FOR Variants~setDefaults.
+    METHODS setdefaults FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR variants~setdefaults.
 
-    METHODS checkDataElements FOR VALIDATE ON SAVE
-      IMPORTING keys FOR Variants~checkDataElements.
+    METHODS checkdataelements FOR VALIDATE ON SAVE
+      IMPORTING keys FOR variants~checkdataelements.
 
-    METHODS checkRangeConsistency FOR VALIDATE ON SAVE
-      IMPORTING keys FOR Variants~checkRangeConsistency.
+    METHODS checkrangeconsistency FOR VALIDATE ON SAVE
+      IMPORTING keys FOR variants~checkrangeconsistency.
 
-    "! Checks whether a name refers to an existing elementary DDIC type.
-    METHODS data_element_exists
-      IMPORTING data_element  TYPE zda_variants-data_element
-      RETURNING VALUE(result) TYPE abap_boolean.
+    METHODS checkvaluetypes FOR VALIDATE ON SAVE
+      IMPORTING keys FOR variants~checkvaluetypes.
 
 ENDCLASS.
 
@@ -94,21 +108,21 @@ CLASS lhc_variants IMPLEMENTATION.
   METHOD get_instance_authorizations.
 
     READ ENTITIES OF zi_da_variants IN LOCAL MODE
-      ENTITY Variants FIELDS ( Progname ) WITH CORRESPONDING #( keys )
+      ENTITY variants FIELDS ( progname ) WITH CORRESPONDING #( keys )
       RESULT DATA(variants).
 
     LOOP AT variants INTO DATA(variant).
 
       AUTHORITY-CHECK OBJECT 'ZDA_VAR'
         ID 'ACTVT'    FIELD activity_change
-        ID 'ZDA_PROG' FIELD variant-Progname.
+        ID 'ZDA_PROG' FIELD variant-progname.
       DATA(change_allowed) = COND #( WHEN sy-subrc = 0
                                      THEN if_abap_behv=>auth-allowed
                                      ELSE if_abap_behv=>auth-unauthorized ).
 
       AUTHORITY-CHECK OBJECT 'ZDA_VAR'
         ID 'ACTVT'    FIELD activity_delete
-        ID 'ZDA_PROG' FIELD variant-Progname.
+        ID 'ZDA_PROG' FIELD variant-progname.
       DATA(delete_allowed) = COND #( WHEN sy-subrc = 0
                                      THEN if_abap_behv=>auth-allowed
                                      ELSE if_abap_behv=>auth-unauthorized ).
@@ -127,70 +141,84 @@ CLASS lhc_variants IMPLEMENTATION.
 
     LOOP AT entities INTO DATA(entity).
 
-      ASSIGN last_counters[ progname    = entity-Progname
-                            parameterid = entity-Parameterid ] TO FIELD-SYMBOL(<last_counter>).
+      ASSIGN last_counters[ progname    = entity-progname
+                            parameterid = entity-parameterid ] TO FIELD-SYMBOL(<last_counter>).
 
       IF sy-subrc <> 0.
         " read once per distinct key, then keep counting inside the buffer so that
         " several entities of one request never share a counter
         SELECT FROM zda_variants
           FIELDS MAX( counter ) AS counter
-          WHERE progname    = @entity-Progname
-            AND parameterid = @entity-Parameterid
+          WHERE progname    = @entity-progname
+            AND parameterid = @entity-parameterid
           INTO @DATA(active_counter).
 
         SELECT FROM zda_variants_d
           FIELDS MAX( counter ) AS counter
-          WHERE progname    = @entity-Progname
-            AND parameterid = @entity-Parameterid
+          WHERE progname    = @entity-progname
+            AND parameterid = @entity-parameterid
           INTO @DATA(draft_counter).
 
-        INSERT VALUE #( progname    = entity-Progname
-                        parameterid = entity-Parameterid
+        INSERT VALUE #( progname    = entity-progname
+                        parameterid = entity-parameterid
                         counter     = nmax( val1 = active_counter
                                             val2 = draft_counter ) ) INTO TABLE last_counters
                                                                      ASSIGNING <last_counter>.
+      ENDIF.
+
+      IF <last_counter>-counter >= max_counter.
+        " NUMC(5) wraps to 00000 without any error, so the ceiling is checked here
+        APPEND VALUE #( %cid      = entity-%cid
+                        %is_draft = entity-%is_draft ) TO failed-variants.
+
+        APPEND VALUE #( %cid      = entity-%cid
+                        %is_draft = entity-%is_draft
+                        %msg      = new_message_with_text(
+                                        severity = if_abap_behv_message=>severity-error
+                                        text     = |{ TEXT-004 } { entity-parameterid }| )
+                      ) TO reported-variants.
+        CONTINUE.
       ENDIF.
 
       <last_counter>-counter += 1.
 
       APPEND VALUE #( %cid        = entity-%cid
                       %is_draft   = entity-%is_draft
-                      Progname    = entity-Progname
-                      Parameterid = entity-Parameterid
-                      Counter     = <last_counter>-counter ) TO mapped-variants.
+                      progname    = entity-progname
+                      parameterid = entity-parameterid
+                      counter     = <last_counter>-counter ) TO mapped-variants.
 
     ENDLOOP.
 
   ENDMETHOD.
 
 
-  METHOD setDefaults.
+  METHOD setdefaults.
 
     READ ENTITIES OF zi_da_variants IN LOCAL MODE
-      ENTITY Variants FIELDS ( IsActive Sign Opt ) WITH CORRESPONDING #( keys )
+      ENTITY variants FIELDS ( isactive sign opt ) WITH CORRESPONDING #( keys )
       RESULT DATA(variants).
 
-    DATA defaults TYPE TABLE FOR UPDATE zi_da_variants\\Variants.
+    DATA defaults TYPE TABLE FOR UPDATE zi_da_variants\\variants.
 
     defaults = VALUE #(
         FOR variant IN variants
-        WHERE ( IsActive IS INITIAL OR Sign IS INITIAL OR Opt IS INITIAL )
+        WHERE ( isactive IS INITIAL OR sign IS INITIAL OR opt IS INITIAL )
         ( %tky     = variant-%tky
-          IsActive = COND #( WHEN variant-IsActive IS INITIAL
-                             THEN abap_true ELSE variant-IsActive )
-          Sign     = COND #( WHEN variant-Sign IS INITIAL
-                             THEN sign_include ELSE variant-Sign )
-          Opt      = COND #( WHEN variant-Opt IS INITIAL
-                             THEN option_equal ELSE variant-Opt ) ) ).
+          isactive = COND #( WHEN variant-isactive IS INITIAL
+                             THEN abap_true ELSE variant-isactive )
+          sign     = COND #( WHEN variant-sign IS INITIAL
+                             THEN sign_include ELSE variant-sign )
+          opt      = COND #( WHEN variant-opt IS INITIAL
+                             THEN option_equal ELSE variant-opt ) ) ).
 
     IF defaults IS INITIAL.
       RETURN.
     ENDIF.
 
     MODIFY ENTITIES OF zi_da_variants IN LOCAL MODE
-      ENTITY Variants
-      UPDATE FIELDS ( IsActive Sign Opt )
+      ENTITY variants
+      UPDATE FIELDS ( isactive sign opt )
       WITH defaults
       REPORTED DATA(update_reported).
 
@@ -199,10 +227,10 @@ CLASS lhc_variants IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD checkDataElements.
+  METHOD checkdataelements.
 
     READ ENTITIES OF zi_da_variants IN LOCAL MODE
-      ENTITY Variants FIELDS ( DataElement MappingDataElement MappingValue )
+      ENTITY variants FIELDS ( dataelement mappingdataelement mappingvalue )
       WITH CORRESPONDING #( keys )
       RESULT DATA(variants).
 
@@ -213,12 +241,12 @@ CLASS lhc_variants IMPLEMENTATION.
                       %state_area = state_area_elements ) TO reported-variants.
 
       DATA(checks) = VALUE ty_element_checks(
-          ( element = variant-DataElement        is_map = abap_false )
-          ( element = variant-MappingDataElement is_map = abap_true ) ).
+          ( element = variant-dataelement        is_map = abap_false )
+          ( element = variant-mappingdataelement is_map = abap_true ) ).
 
       LOOP AT checks INTO DATA(check) WHERE element IS NOT INITIAL.
 
-        IF data_element_exists( check-element ) = abap_true.
+        IF zcl_da_variants=>data_element_exists( check-element ) = abap_true.
           CONTINUE.
         ENDIF.
 
@@ -226,9 +254,9 @@ CLASS lhc_variants IMPLEMENTATION.
 
         APPEND VALUE #( %tky        = variant-%tky
                         %state_area = state_area_elements
-                        %element-DataElement        = COND #( WHEN check-is_map = abap_false
+                        %element-dataelement        = COND #( WHEN check-is_map = abap_false
                                                               THEN if_abap_behv=>mk-on )
-                        %element-MappingDataElement = COND #( WHEN check-is_map = abap_true
+                        %element-mappingdataelement = COND #( WHEN check-is_map = abap_true
                                                               THEN if_abap_behv=>mk-on )
                         %msg        = new_message_with_text(
                                           severity = if_abap_behv_message=>severity-error
@@ -242,10 +270,10 @@ CLASS lhc_variants IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD checkRangeConsistency.
+  METHOD checkrangeconsistency.
 
     READ ENTITIES OF zi_da_variants IN LOCAL MODE
-      ENTITY Variants FIELDS ( Sign Opt Value HighValue ) WITH CORRESPONDING #( keys )
+      ENTITY variants FIELDS ( sign opt value highvalue ) WITH CORRESPONDING #( keys )
       RESULT DATA(variants).
 
     LOOP AT variants INTO DATA(variant).
@@ -253,29 +281,29 @@ CLASS lhc_variants IMPLEMENTATION.
       APPEND VALUE #( %tky        = variant-%tky
                       %state_area = state_area_range ) TO reported-variants.
 
-      DATA(needs_high_value) = xsdbool( variant-Opt = option_between
-                                     OR variant-Opt = option_not_between ).
+      DATA(needs_high_value) = xsdbool( variant-opt = option_between
+                                     OR variant-opt = option_not_between ).
 
-      IF needs_high_value = abap_true AND variant-HighValue IS INITIAL.
+      IF needs_high_value = abap_true AND variant-highvalue IS INITIAL.
         APPEND VALUE #( %tky = variant-%tky ) TO failed-variants.
         APPEND VALUE #( %tky               = variant-%tky
                         %state_area        = state_area_range
-                        %element-HighValue = if_abap_behv=>mk-on
+                        %element-highvalue = if_abap_behv=>mk-on
                         %msg               = new_message_with_text(
                                                  severity = if_abap_behv_message=>severity-error
-                                                 text     = |{ TEXT-001 } { variant-Opt }| )
+                                                 text     = |{ TEXT-001 } { variant-opt }| )
                       ) TO reported-variants.
         CONTINUE.
       ENDIF.
 
-      IF needs_high_value = abap_false AND variant-HighValue IS NOT INITIAL.
+      IF needs_high_value = abap_false AND variant-highvalue IS NOT INITIAL.
         APPEND VALUE #( %tky = variant-%tky ) TO failed-variants.
         APPEND VALUE #( %tky               = variant-%tky
                         %state_area        = state_area_range
-                        %element-HighValue = if_abap_behv=>mk-on
+                        %element-highvalue = if_abap_behv=>mk-on
                         %msg               = new_message_with_text(
                                                  severity = if_abap_behv_message=>severity-error
-                                                 text     = |{ TEXT-002 } { variant-Opt }| )
+                                                 text     = |{ TEXT-002 } { variant-opt }| )
                       ) TO reported-variants.
       ENDIF.
 
@@ -284,19 +312,60 @@ CLASS lhc_variants IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD data_element_exists.
+  METHOD checkvaluetypes.
 
-    cl_abap_typedescr=>describe_by_name( EXPORTING  p_name         = data_element
-                                         RECEIVING  p_descr_ref    = DATA(type)
-                                         EXCEPTIONS type_not_found = 1
-                                                    OTHERS         = 2 ).
-    IF sy-subrc <> 0.
-      RETURN.
-    ENDIF.
+    READ ENTITIES OF zi_da_variants IN LOCAL MODE
+      ENTITY variants FIELDS ( value highvalue dataelement mappingvalue mappingdataelement )
+      WITH CORRESPONDING #( keys )
+      RESULT DATA(variants).
 
-    result = xsdbool( type->kind = cl_abap_typedescr=>kind_elem ).
+    LOOP AT variants INTO DATA(variant).
+
+      " reset the messages of the previous run for this instance
+      APPEND VALUE #( %tky        = variant-%tky
+                      %state_area = state_area_values ) TO reported-variants.
+
+      " both bounds live in the same column and therefore in the same type
+      DATA(checks) = VALUE ty_value_checks(
+          ( value   = variant-value
+            element = variant-dataelement
+            target  = element_value )
+          ( value   = variant-highvalue
+            element = variant-dataelement
+            target  = element_high )
+          ( value   = variant-mappingvalue
+            element = variant-mappingdataelement
+            target  = element_mapping ) ).
+
+      LOOP AT checks INTO DATA(check) WHERE value IS NOT INITIAL AND element IS NOT INITIAL.
+
+        TRY.
+            " one implementation for both doors into the configuration table
+            zcl_da_variants=>check_value( value        = check-value
+                                          data_element = check-element ).
+
+          CATCH zcx_da_variants INTO DATA(type_error).
+
+            APPEND VALUE #( %tky = variant-%tky ) TO failed-variants.
+
+            APPEND VALUE #( %tky        = variant-%tky
+                            %state_area = state_area_values
+                            %element-value        = COND #( WHEN check-target = element_value
+                                                            THEN if_abap_behv=>mk-on )
+                            %element-highvalue    = COND #( WHEN check-target = element_high
+                                                            THEN if_abap_behv=>mk-on )
+                            %element-mappingvalue = COND #( WHEN check-target = element_mapping
+                                                            THEN if_abap_behv=>mk-on )
+                            %msg        = new_message_with_text(
+                                              severity = if_abap_behv_message=>severity-error
+                                              text     = type_error->get_text( ) )
+                          ) TO reported-variants.
+        ENDTRY.
+
+      ENDLOOP.
+
+    ENDLOOP.
 
   ENDMETHOD.
-
 
 ENDCLASS.

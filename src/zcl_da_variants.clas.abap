@@ -52,6 +52,28 @@ CLASS zcl_da_variants DEFINITION
                 packages   TYPE string     OPTIONAL
       RAISING   zcx_da_variants.
 
+    "! Checks whether a name refers to an existing elementary DDIC type.
+    "! @parameter data_element | Name to check
+    "! @parameter result       | <em>abap_true</em> when an elementary data element exists
+    CLASS-METHODS data_element_exists
+      IMPORTING data_element  TYPE ty_data_el
+      RETURNING VALUE(result) TYPE abap_boolean.
+
+    "! Rejects a value that its configured data element could not hold unchanged.
+    "! <p>Three losses happen without any runtime error and are caught here instead:
+    "! <em>NUMC</em> keeps the digits of the source and drops the rest, <em>CHAR</em>
+    "! truncates on the right, and a date field is character like, so a day that does
+    "! not exist in the calendar is copied straight in.</p>
+    "! <p>Leading zeros added by <em>NUMC</em> are not a loss and stay accepted.</p>
+    "!
+    "! @parameter value           | Value as it is stored in the configuration table
+    "! @parameter data_element    | Configured type, initial for the native column type
+    "! @raising   zcx_da_variants | The value would be truncated, filtered or is no date
+    CLASS-METHODS check_value
+      IMPORTING value        TYPE ty_value
+                data_element TYPE ty_data_el
+      RAISING   zcx_da_variants.
+
   PRIVATE SECTION.
 
     TYPES ty_user          TYPE zda_variants-created_by.
@@ -72,6 +94,19 @@ CLASS zcl_da_variants DEFINITION
     CONSTANTS max_counter  TYPE i VALUE 99999.
     "! Times an append retries after another LUW took the allocated counter.
     CONSTANTS max_attempts TYPE i VALUE 5.
+
+    TYPES ty_month_lengths TYPE STANDARD TABLE OF i WITH EMPTY KEY.
+
+    CONSTANTS digits      TYPE string VALUE `0123456789` ##NO_TEXT.
+    CONSTANTS date_length TYPE i VALUE 8.
+    CONSTANTS time_length TYPE i VALUE 6.
+    CONSTANTS february    TYPE i VALUE 2.
+    CONSTANTS leap_day    TYPE i VALUE 29.
+    CONSTANTS max_year    TYPE i VALUE 9999.
+    CONSTANTS max_month   TYPE i VALUE 12.
+    CONSTANTS max_hour    TYPE i VALUE 23.
+    CONSTANTS max_minute  TYPE i VALUE 59.
+    CONSTANTS max_second  TYPE i VALUE 59.
 
     CONSTANTS component_sign   TYPE string VALUE `SIGN`          ##NO_TEXT.
     CONSTANTS component_option TYPE string VALUE `OPTION`        ##NO_TEXT.
@@ -112,11 +147,78 @@ CLASS zcl_da_variants DEFINITION
     "! @parameter sample_value    | Fallback value used when no data element is configured
     "! @parameter result          | Element description of the resolved type
     "! @raising   zcx_da_variants | The configured data element does not exist
-    METHODS resolve_element_type
+    CLASS-METHODS resolve_element_type
       IMPORTING data_element  TYPE ty_data_el
                 sample_value  TYPE ty_value
       RETURNING VALUE(result) TYPE REF TO cl_abap_elemdescr
       RAISING   zcx_da_variants.
+
+    "! Writes the value into its configured type and reports what the type refuses.
+    "! @parameter value           | Value to convert
+    "! @parameter data_element    | Configured data element, named in the message
+    "! @parameter element         | Resolved type of the data element
+    "! @parameter result          | Data reference holding the converted value
+    "! @raising   zcx_da_variants | The conversion failed or overflowed
+    CLASS-METHODS check_convertible
+      IMPORTING value         TYPE ty_value
+                data_element  TYPE ty_data_el
+                element       TYPE REF TO cl_abap_elemdescr
+      RETURNING VALUE(result) TYPE REF TO data
+      RAISING   zcx_da_variants.
+
+    "! Rejects a value that a character like type would truncate or filter.
+    "! @parameter value           | Value to convert
+    "! @parameter data_element    | Configured data element, named in the message
+    "! @parameter element         | Resolved type of the data element
+    "! @raising   zcx_da_variants | The value does not survive the round trip
+    CLASS-METHODS check_round_trip
+      IMPORTING value        TYPE ty_value
+                data_element TYPE ty_data_el
+                element      TYPE REF TO cl_abap_elemdescr
+      RAISING   zcx_da_variants.
+
+    "! Rejects a value that is not a day the calendar knows.
+    "! @parameter value           | Value to check, expected as YYYYMMDD
+    "! @parameter data_element    | Configured data element, named in the message
+    "! @raising   zcx_da_variants | The value is no valid date
+    CLASS-METHODS check_date
+      IMPORTING value        TYPE ty_value
+                data_element TYPE ty_data_el
+      RAISING   zcx_da_variants.
+
+    "! Rejects a value that is not a time of day.
+    "! @parameter value           | Value to check, expected as HHMMSS
+    "! @parameter data_element    | Configured data element, named in the message
+    "! @raising   zcx_da_variants | The value is no valid time
+    CLASS-METHODS check_time
+      IMPORTING value        TYPE ty_value
+                data_element TYPE ty_data_el
+      RAISING   zcx_da_variants.
+
+    "! Strips what a type adds by itself, so that only real losses remain visible.
+    "! @parameter value     | Value to normalise
+    "! @parameter type_kind | Type kind of the target, drives the leading zero rule
+    "! @parameter result    | Comparable form of the value
+    CLASS-METHODS normalized
+      IMPORTING value         TYPE ty_value
+                type_kind     TYPE abap_typekind
+      RETURNING VALUE(result) TYPE string.
+
+    "! Returns the last day the given month has in the given year.
+    "! @parameter year   | Calendar year, drives the leap year rule
+    "! @parameter month  | Calendar month between 1 and 12
+    "! @parameter result | Last day of that month
+    CLASS-METHODS last_day_of_month
+      IMPORTING year          TYPE i
+                month         TYPE i
+      RETURNING VALUE(result) TYPE i.
+
+    "! Answers whether February has 29 days in the given year.
+    "! @parameter year   | Calendar year
+    "! @parameter result | <em>abap_true</em> for a leap year
+    CLASS-METHODS is_leap_year
+      IMPORTING year          TYPE i
+      RETURNING VALUE(result) TYPE abap_boolean.
 
     "! Appends one range line per variant to the caller's own range table.
     "! <p>The caller's table is emptied again when a stored value does not fit the
@@ -182,16 +284,66 @@ CLASS zcl_da_variants DEFINITION
       RAISING  zcx_da_variants.
 
     "! Validates the parts of a variant that the database cannot enforce.
+    "! <p>Enforces exactly the rules the Fiori application enforces, so that both
+    "! doors into the configuration table accept the same rows.</p>
+    "! @parameter parameter_id         | Parameter the row belongs to
+    "! @parameter field_value          | Value, or lower bound of a range line
     "! @parameter data_element         | Data element of the value, may be initial
+    "! @parameter mapping_field_value  | Value the variant maps to, may be initial
     "! @parameter mapping_data_element | Data element of the mapping value, may be initial
     "! @parameter option               | Comparison operator of the range line
     "! @parameter high_value           | Upper bound of the range line
-    "! @raising   zcx_da_variants      | A data element is unknown, or a bound is missing
+    "! @raising   zcx_da_variants      | The row would not be accepted by the application
     METHODS validate_input
-      IMPORTING data_element         TYPE ty_data_el
+      IMPORTING parameter_id         TYPE ty_parameterid
+                field_value          TYPE ty_value
+                data_element         TYPE ty_data_el
+                mapping_field_value  TYPE ty_value
                 mapping_data_element TYPE ty_data_el
                 option               TYPE ty_opt
                 high_value           TYPE ty_value
+      RAISING   zcx_da_variants.
+
+    "! Rejects a row whose values would not survive their configured types.
+    "! @parameter field_value          | Value, or lower bound of a range line
+    "! @parameter high_value           | Upper bound, stored in the same type
+    "! @parameter data_element         | Data element of both bounds, may be initial
+    "! @parameter mapping_field_value  | Value the variant maps to, may be initial
+    "! @parameter mapping_data_element | Data element of the mapping value, may be initial
+    "! @raising   zcx_da_variants      | A value does not fit its data element
+    METHODS validate_values
+      IMPORTING field_value          TYPE ty_value
+                high_value           TYPE ty_value
+                data_element         TYPE ty_data_el
+                mapping_field_value  TYPE ty_value
+                mapping_data_element TYPE ty_data_el
+      RAISING   zcx_da_variants.
+
+    "! Rejects a row that misses a field the behaviour definition declares mandatory.
+    "! @parameter parameter_id    | Parameter the row belongs to
+    "! @parameter field_value     | Value, or lower bound of a range line
+    "! @raising   zcx_da_variants | Parameter or value is initial
+    METHODS validate_mandatory
+      IMPORTING parameter_id TYPE ty_parameterid
+                field_value  TYPE ty_value
+      RAISING   zcx_da_variants.
+
+    "! Rejects a row whose configured types cannot be resolved.
+    "! @parameter data_element         | Data element of the value, may be initial
+    "! @parameter mapping_data_element | Data element of the mapping value, may be initial
+    "! @raising   zcx_da_variants      | A data element is unknown or not elementary
+    METHODS validate_data_elements
+      IMPORTING data_element         TYPE ty_data_el
+                mapping_data_element TYPE ty_data_el
+      RAISING   zcx_da_variants.
+
+    "! Rejects a range line whose bounds do not match its comparison operator.
+    "! @parameter option          | Comparison operator of the range line
+    "! @parameter high_value      | Upper bound of the range line
+    "! @raising   zcx_da_variants | A bound is missing, or one is given where none belongs
+    METHODS validate_range
+      IMPORTING option     TYPE ty_opt
+                high_value TYPE ty_value
       RAISING   zcx_da_variants.
 
     "! Reads the creation stamp of a row that is about to be replaced.
@@ -239,13 +391,6 @@ CLASS zcl_da_variants DEFINITION
       IMPORTING row           TYPE ty_variant
       RETURNING VALUE(result) TYPE abap_boolean
       RAISING   zcx_da_variants.
-
-    "! Checks whether a name refers to an existing elementary DDIC type.
-    "! @parameter data_element | Name to check
-    "! @parameter result       | <em>abap_true</em> when the data element exists
-    METHODS data_element_exists
-      IMPORTING data_element  TYPE ty_data_el
-      RETURNING VALUE(result) TYPE abap_boolean.
 
 ENDCLASS.
 
@@ -338,7 +483,10 @@ CLASS zcl_da_variants IMPLEMENTATION.
     DATA(variant_sign)   = COND ty_sign( WHEN sign   IS NOT INITIAL THEN sign   ELSE sign_include ).
     DATA(variant_option) = COND ty_opt(  WHEN option IS NOT INITIAL THEN option ELSE opt_eq ).
 
-    validate_input( data_element         = element
+    validate_input( parameter_id         = parameter
+                    field_value          = field_value
+                    data_element         = element
+                    mapping_field_value  = mapping_field_value
                     mapping_data_element = mapping_element
                     option               = variant_option
                     high_value           = high_value ).
@@ -644,6 +792,207 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   METHOD validate_input.
 
+    validate_mandatory( parameter_id = parameter_id
+                        field_value  = field_value ).
+
+    validate_data_elements( data_element         = data_element
+                            mapping_data_element = mapping_data_element ).
+
+    validate_range( option     = option
+                    high_value = high_value ).
+
+    validate_values( field_value          = field_value
+                     high_value           = high_value
+                     data_element         = data_element
+                     mapping_field_value  = mapping_field_value
+                     mapping_data_element = mapping_data_element ).
+
+  ENDMETHOD.
+
+
+  METHOD validate_values.
+
+    " both bounds live in the same column and therefore in the same type
+    check_value( value        = field_value
+                 data_element = data_element ).
+
+    check_value( value        = high_value
+                 data_element = data_element ).
+
+    check_value( value        = mapping_field_value
+                 data_element = mapping_data_element ).
+
+  ENDMETHOD.
+
+
+  METHOD check_value.
+
+    " the native 255 character column holds anything, and nothing is lost from nothing
+    IF value IS INITIAL OR data_element IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA(element) = resolve_element_type( data_element = data_element
+                                          sample_value = value ).
+
+    CASE element->type_kind.
+
+      WHEN cl_abap_typedescr=>typekind_date.
+        check_date( value        = value
+                    data_element = data_element ).
+
+      WHEN cl_abap_typedescr=>typekind_time.
+        check_time( value        = value
+                    data_element = data_element ).
+
+      WHEN cl_abap_typedescr=>typekind_char
+        OR cl_abap_typedescr=>typekind_num
+        OR cl_abap_typedescr=>typekind_string.
+        " character like targets truncate and filter without raising anything
+        check_round_trip( value        = value
+                          data_element = data_element
+                          element      = element ).
+
+      WHEN OTHERS.
+        " every other type reports on its own that the value does not fit
+        check_convertible( value        = value
+                           data_element = data_element
+                           element      = element ).
+
+    ENDCASE.
+
+  ENDMETHOD.
+
+
+  METHOD check_convertible.
+
+    TRY.
+        CREATE DATA result TYPE HANDLE element.
+        ASSIGN result->* TO FIELD-SYMBOL(<target>).
+
+        <target> = value.
+
+      CATCH cx_sy_conversion_error cx_sy_create_data_error INTO DATA(conversion_error).
+        RAISE EXCEPTION NEW zcx_da_variants(
+                  text     = |{ TEXT-020 } { data_element }: { conversion_error->get_text( ) }|
+                  previous = conversion_error ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD check_round_trip.
+
+    DATA stored TYPE ty_value.
+
+    DATA(target) = check_convertible( value        = value
+                                      data_element = data_element
+                                      element      = element ).
+
+    ASSIGN target->* TO FIELD-SYMBOL(<target>).
+
+    " read the value back the way get_variant( ) would see it
+    stored = <target>.
+
+    IF normalized( value = stored type_kind = element->type_kind )
+       <> normalized( value = value type_kind = element->type_kind ).
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-021 } { data_element }| ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD normalized.
+
+    result = condense( CONV string( value ) ).
+
+    " NUMC pads with leading zeros, which adds nothing and loses nothing
+    IF type_kind = cl_abap_typedescr=>typekind_num.
+      SHIFT result LEFT DELETING LEADING '0'.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD check_date.
+
+    " a date field is character like, so an impossible day is copied straight in
+    DATA(text) = condense( CONV string( value ) ).
+
+    IF strlen( text ) <> date_length OR text CN digits.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { data_element }| ).
+    ENDIF.
+
+    DATA(year)  = CONV i( substring( val = text off = 0 len = 4 ) ).
+    DATA(month) = CONV i( substring( val = text off = 4 len = 2 ) ).
+    DATA(day)   = CONV i( substring( val = text off = 6 len = 2 ) ).
+
+    IF year < 1 OR year > max_year OR month < 1 OR month > max_month.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { data_element }| ).
+    ENDIF.
+
+    IF day < 1 OR day > last_day_of_month( year = year month = month ).
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { data_element }| ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD check_time.
+
+    DATA(text) = condense( CONV string( value ) ).
+
+    IF strlen( text ) <> time_length OR text CN digits.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-023 } { data_element }| ).
+    ENDIF.
+
+    DATA(hours)   = CONV i( substring( val = text off = 0 len = 2 ) ).
+    DATA(minutes) = CONV i( substring( val = text off = 2 len = 2 ) ).
+    DATA(seconds) = CONV i( substring( val = text off = 4 len = 2 ) ).
+
+    IF hours > max_hour OR minutes > max_minute OR seconds > max_second.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-023 } { data_element }| ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD last_day_of_month.
+
+    DATA(lengths) = VALUE ty_month_lengths( ( 31 ) ( 28 ) ( 31 ) ( 30 ) ( 31 ) ( 30 )
+                                            ( 31 ) ( 31 ) ( 30 ) ( 31 ) ( 30 ) ( 31 ) ).
+
+    result = VALUE #( lengths[ month ] OPTIONAL ).
+
+    IF month = february AND is_leap_year( year ) = abap_true.
+      result = leap_day.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD is_leap_year.
+
+    result = xsdbool( ( year MOD 4 = 0 AND year MOD 100 <> 0 ) OR year MOD 400 = 0 ).
+
+  ENDMETHOD.
+
+
+  METHOD validate_mandatory.
+
+    IF parameter_id IS INITIAL.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-017 }| ).
+    ENDIF.
+
+    IF field_value IS INITIAL.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-018 } { parameter_id }| ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD validate_data_elements.
+
     IF data_element IS NOT INITIAL AND data_element_exists( data_element ) = abap_false.
       RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-005 } { data_element }| ).
     ENDIF.
@@ -653,8 +1002,20 @@ CLASS zcl_da_variants IMPLEMENTATION.
       RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-006 } { mapping_data_element }| ).
     ENDIF.
 
-    IF ( option = opt_bt OR option = opt_nb ) AND high_value IS INITIAL.
+  ENDMETHOD.
+
+
+  METHOD validate_range.
+
+    DATA(takes_high_value) = xsdbool( option = opt_bt OR option = opt_nb ).
+
+    IF takes_high_value = abap_true AND high_value IS INITIAL.
       RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-013 } { CONV ty_base_opt( option ) }| ).
+    ENDIF.
+
+    " the Fiori application rejects this too, an upper bound has no meaning here
+    IF takes_high_value = abap_false AND high_value IS NOT INITIAL.
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-019 } { CONV ty_base_opt( option ) }| ).
     ENDIF.
 
   ENDMETHOD.
@@ -779,4 +1140,5 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   ENDMETHOD.
 ENDCLASS.
+
 

@@ -30,6 +30,10 @@ early numbering
   { create; update;
     field Sign, Opt, Value, HighValue; }
 
+  validation checkValueTypes on save
+  { create; update;
+    field Value, HighValue, DataElement, MappingValue, MappingDataElement; }
+
   draft action Edit;
   draft action Activate optimized;
   draft action Discard;
@@ -38,6 +42,7 @@ early numbering
   {
     validation checkDataElements;
     validation checkRangeConsistency;
+    validation checkValueTypes;
   }
 
   mapping for zda_variants

@@ -690,10 +690,10 @@ CLASS ltc_variants IMPLEMENTATION.
 
   METHOD given_lower_case_then_upper.
 
-    " when
+    " when - the value has to fit ZDE_DA_SIGN, which is one character wide
     cut->set_variant( parameter_id = CONV #( to_lower( test_parameter ) )
                       program_name = CONV #( to_lower( test_program ) )
-                      field_value  = '1000'
+                      field_value  = 'I'
                       data_element = CONV #( to_lower( elementary_el ) ) ).
 
     " then
@@ -1116,6 +1116,20 @@ CLASS ltc_defects DEFINITION FINAL FOR TESTING
     "! The mapping column must be typed from the first row that maps anything.
     METHODS given_late_map_el_then_typed   FOR TESTING RAISING cx_static_check.
 
+    " ----- defect 4, the API accepts what the Fiori application rejects --------
+    "! An upper bound without a range option must be rejected on write.
+    METHODS given_eq_with_high_then_error  FOR TESTING.
+    "! A blank parameter id must be rejected on write.
+    METHODS given_no_parameter_then_error  FOR TESTING.
+    "! A blank value must be rejected on write.
+    METHODS given_no_value_then_error      FOR TESTING.
+
+    " ----- defect 5, messages must carry their text symbol -------------------
+    "! The exhausted counter message must not start with an unmaintained symbol.
+    METHODS given_no_counter_then_message  FOR TESTING.
+    "! The mixed mapping message must not start with an unmaintained symbol.
+    METHODS given_mixed_map_then_message   FOR TESTING.
+
     " ----- helpers ----------------------------------------------------------
     METHODS insert_variant
       IMPORTING value           TYPE zif_da_variants=>ty_value   OPTIONAL
@@ -1364,6 +1378,120 @@ CLASS ltc_defects IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD given_eq_with_high_then_error.
+
+    " when - an upper bound on an option that has no upper bound
+    TRY.
+        cut->set_variant( parameter_id = test_parameter
+                          program_name = test_program
+                          field_value  = '1000'
+                          high_value   = '2000'
+                          option       = zcl_da_variants=>opt_eq ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'An upper bound without a range option must be rejected' ).
+
+      CATCH zcx_da_variants.
+        " then - expected, the Fiori application already rejects this
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_no_parameter_then_error.
+
+    " when
+    TRY.
+        cut->set_variant( parameter_id = space
+                          program_name = test_program
+                          field_value  = '1000' ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'A variant without a parameter id must be rejected' ).
+
+      CATCH zcx_da_variants.
+        " then - expected, Parameterid is mandatory in the behaviour definition
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_no_value_then_error.
+
+    " when
+    TRY.
+        cut->set_variant( parameter_id = test_parameter
+                          program_name = test_program
+                          field_value  = space ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'A variant without a value must be rejected' ).
+
+      CATCH zcx_da_variants.
+        " then - expected, Value is mandatory in the behaviour definition
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_no_counter_then_message.
+
+    " given - the last counter of the parameter is already allocated
+    insert_variant( value = 'STORED' counter = highest_ctr ).
+
+    " when
+    TRY.
+        cut->set_variant( parameter_id = test_parameter
+                          program_name = test_program
+                          field_value  = 'NEW' ).
+
+        cl_abap_unit_assert=>fail( msg = 'An append that cannot be numbered must be rejected' ).
+
+      CATCH zcx_da_variants INTO DATA(counter_error).
+        " then - a leading blank means the text symbol was never maintained
+        cl_abap_unit_assert=>assert_differs(
+            exp = ` `
+            act = substring( val = counter_error->get_text( ) len = 1 )
+            msg = 'Text symbol 015 is missing, the message starts with a blank' ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_mixed_map_then_message.
+
+    " given - one parameter, two rows, two different mapping data elements
+    insert_variant( counter         = '00001'
+                    value           = 'A'
+                    mapping_value   = 'I'
+                    mapping_data_el = sign_el ).
+
+    insert_variant( counter         = '00002'
+                    value           = 'B'
+                    mapping_value   = 'DESCRIPTION'
+                    mapping_data_el = descr_el ).
+
+    " when
+    TRY.
+        DATA mapping_values TYPE REF TO data.
+
+        cut->get_variant( EXPORTING parameter_id   = test_parameter
+                                    program_name   = test_program
+                          IMPORTING mapping_values = mapping_values ).
+
+        cl_abap_unit_assert=>fail( msg = 'Mixed mapping data elements must be rejected' ).
+
+      CATCH zcx_da_variants INTO DATA(mapping_error).
+        " then - a leading blank means the text symbol was never maintained
+        cl_abap_unit_assert=>assert_differs(
+            exp = ` `
+            act = substring( val = mapping_error->get_text( ) len = 1 )
+            msg = 'Text symbol 014 is missing, the message starts with a blank' ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+
   METHOD insert_variant.
 
     sql_environment->insert_test_data( VALUE zcl_da_variants=>ty_variants(
@@ -1426,6 +1554,289 @@ CLASS ltc_defects IMPLEMENTATION.
     DATA(line_type)  = CAST cl_abap_structdescr( table_type->get_table_line_type( ) ).
 
     result = line_type->get_component_type( CONV #( column ) )->length.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! Describes the type check that {@link ZCL_DA_VARIANTS} must run on write.
+"! <p>A configuration framework is only useful if what set_variant( ) accepts can
+"! be read back by get_variant( ). Today a value that does not fit its configured
+"! data element is stored without a word and only surfaces months later, on read,
+"! in whatever program happens to ask for it first.</p>
+"! <p>Three losses happen silently and none of them raises anything at runtime:</p>
+"! <ul>
+"! <li><em>NUMC</em> keeps the digits of the source and drops everything else,
+"! so 'ABC' becomes 00000.</li>
+"! <li><em>CHAR</em> truncates on the right, so 'IE' in a one character element
+"! becomes 'I'.</li>
+"! <li><em>DATS</em> is character like, so 20240230 is copied in as a date that
+"! does not exist.</li>
+"! </ul>
+"! <p>The guard tests at the end are the other half of the contract: the check
+"! must not start rejecting values that are perfectly storable.</p>
+CLASS ltc_value_types DEFINITION FINAL FOR TESTING
+  RISK LEVEL HARMLESS
+  DURATION SHORT.
+
+  PRIVATE SECTION.
+
+    CLASS-DATA sql_environment TYPE REF TO if_osql_test_environment.
+    DATA       cut             TYPE REF TO zif_da_variants.
+
+    CONSTANTS test_program   TYPE zif_da_variants=>ty_progname    VALUE 'TEST_PROG'      ##NO_TEXT.
+    CONSTANTS test_parameter TYPE zif_da_variants=>ty_parameterid VALUE 'UNIT_TEST'      ##NO_TEXT.
+    CONSTANTS numc_el        TYPE zif_da_variants=>ty_data_el     VALUE 'ZDE_DA_COUNTER' ##NO_TEXT.
+    CONSTANTS char1_el       TYPE zif_da_variants=>ty_data_el     VALUE 'ZDE_DA_SIGN'    ##NO_TEXT.
+    CONSTANTS int_el         TYPE zif_da_variants=>ty_data_el     VALUE 'INT4'           ##NO_TEXT.
+    CONSTANTS date_el        TYPE zif_da_variants=>ty_data_el     VALUE 'DATUM'          ##NO_TEXT.
+
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
+    METHODS setup RAISING cx_static_check.
+
+    " ----- values that cannot survive their configured type -----------------
+    "! Text in a NUMC element is filtered down to zeros, so it must be rejected.
+    METHODS given_text_in_numc_then_error  FOR TESTING.
+    "! A value longer than its CHAR element is truncated, so it must be rejected.
+    METHODS given_long_value_then_error    FOR TESTING.
+    "! Text in an integer element must be rejected on write, not on read.
+    METHODS given_text_in_int_then_error   FOR TESTING.
+    "! A date that does not exist in the calendar must be rejected.
+    METHODS given_bad_date_then_error      FOR TESTING.
+    "! The upper bound is stored in the same type and must be checked too.
+    METHODS given_bad_high_then_error      FOR TESTING.
+    "! The mapping value must fit its own mapping data element.
+    METHODS given_bad_map_value_then_error FOR TESTING.
+
+    " ----- values that must keep working ------------------------------------
+    "! A value that fits its element exactly must be stored.
+    METHODS given_fitting_value_then_kept  FOR TESTING RAISING cx_static_check.
+    "! Leading zeros added by NUMC are not a loss and must not be rejected.
+    METHODS given_numc_zeros_then_kept     FOR TESTING RAISING cx_static_check.
+    "! A real leap day must be accepted.
+    METHODS given_valid_date_then_kept     FOR TESTING RAISING cx_static_check.
+    "! Without a data element the native column type holds anything.
+    METHODS given_no_element_then_kept     FOR TESTING RAISING cx_static_check.
+
+    " ----- helpers ----------------------------------------------------------
+    METHODS read_row
+      RETURNING VALUE(result) TYPE zda_variants.
+
+ENDCLASS.
+
+
+CLASS ltc_value_types IMPLEMENTATION.
+
+  METHOD class_setup.
+    sql_environment = cl_osql_test_environment=>create(
+                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
+                                                       ( 'ZDA_VARIANTS_D' ) ) ).
+  ENDMETHOD.
+
+  METHOD class_teardown.
+    sql_environment->destroy( ).
+  ENDMETHOD.
+
+  METHOD setup.
+    sql_environment->clear_doubles( ).
+    cut = NEW zcl_da_variants( ).
+  ENDMETHOD.
+
+
+  METHOD given_text_in_numc_then_error.
+
+    TRY.
+        cut->set_variant( parameter_id = test_parameter
+                          program_name = test_program
+                          field_value  = 'ABC'
+                          data_element = numc_el ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'Text in a NUMC element is filtered to zeros and must be rejected' ).
+
+      CATCH zcx_da_variants.
+        " then - expected
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_long_value_then_error.
+
+    TRY.
+        cut->set_variant( parameter_id = test_parameter
+                          program_name = test_program
+                          field_value  = 'IE'
+                          data_element = char1_el ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'A value longer than its CHAR element is truncated and must be rejected' ).
+
+      CATCH zcx_da_variants.
+        " then - expected
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_text_in_int_then_error.
+
+    TRY.
+        cut->set_variant( parameter_id = test_parameter
+                          program_name = test_program
+                          field_value  = 'ABC'
+                          data_element = int_el ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'Text in an integer element must be rejected on write' ).
+
+      CATCH zcx_da_variants.
+        " then - expected
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_bad_date_then_error.
+
+    TRY.
+        " the 30th of February exists in no year
+        cut->set_variant( parameter_id = test_parameter
+                          program_name = test_program
+                          field_value  = '20240230'
+                          data_element = date_el ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'A date that does not exist must be rejected' ).
+
+      CATCH zcx_da_variants.
+        " then - expected
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_bad_high_then_error.
+
+    TRY.
+        cut->set_variant( parameter_id = test_parameter
+                          program_name = test_program
+                          field_value  = '1000'
+                          high_value   = 'ABC'
+                          option       = zcl_da_variants=>opt_bt
+                          data_element = numc_el ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'The upper bound must fit the configured element as well' ).
+
+      CATCH zcx_da_variants.
+        " then - expected
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_bad_map_value_then_error.
+
+    TRY.
+        cut->set_variant( parameter_id         = test_parameter
+                          program_name         = test_program
+                          field_value          = 'A'
+                          mapping_field_value  = 'LONG'
+                          mapping_data_element = char1_el ).
+
+        cl_abap_unit_assert=>fail(
+            msg = 'The mapping value must fit its own mapping data element' ).
+
+      CATCH zcx_da_variants.
+        " then - expected
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_fitting_value_then_kept.
+
+    " when
+    cut->set_variant( parameter_id = test_parameter
+                      program_name = test_program
+                      field_value  = 'I'
+                      data_element = char1_el ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = 'I'
+        act = read_row( )-value
+        msg = 'A value that fits its element exactly must be stored' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_numc_zeros_then_kept.
+
+    " when - NUMC pads to 01000, which is the same number, not a loss
+    cut->set_variant( parameter_id = test_parameter
+                      program_name = test_program
+                      field_value  = '1000'
+                      data_element = numc_el ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = '1000'
+        act = read_row( )-value
+        msg = 'Leading zeros added by NUMC must not make a value invalid' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_valid_date_then_kept.
+
+    " when - 2024 is a leap year, so the 29th of February exists
+    cut->set_variant( parameter_id = test_parameter
+                      program_name = test_program
+                      field_value  = '20240229'
+                      data_element = date_el ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = '20240229'
+        act = read_row( )-value
+        msg = 'A real leap day must be accepted' ).
+
+  ENDMETHOD.
+
+
+  METHOD given_no_element_then_kept.
+
+    " given - no data element means the native 255 character column type
+    DATA(long_value) = CONV zif_da_variants=>ty_value( repeat( val = 'X' occ = 200 ) ).
+
+    " when
+    cut->set_variant( parameter_id = test_parameter
+                      program_name = test_program
+                      field_value  = long_value ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = long_value
+        act = read_row( )-value
+        msg = 'Without a data element every value must still be storable' ).
+
+  ENDMETHOD.
+
+
+  METHOD read_row.
+
+    SELECT SINGLE FROM zda_variants
+      FIELDS progname, parameterid, counter, is_active, sign, opt,
+             value, high_value, data_element, mapping_value, mapping_data_el,
+             description
+      WHERE progname    = @test_program
+        AND parameterid = @test_parameter
+        AND counter     = '00001'
+      INTO CORRESPONDING FIELDS OF @result.
 
   ENDMETHOD.
 
