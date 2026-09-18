@@ -32,11 +32,11 @@ CLASS ltc_sign_vh DEFINITION FINAL FOR TESTING
 
     " ----- the type ahead filter of the dialog ------------------------------
     "! Without a filter the provider must serve everything.
-    METHODS given_no_filter_then_empty    FOR TESTING.
+    METHODS given_no_filter_then_empty    FOR TESTING RAISING cx_static_check.
     "! A filter on the sign element must become a range.
-    METHODS given_filter_then_range       FOR TESTING.
+    METHODS given_filter_then_range       FOR TESTING RAISING cx_static_check.
     "! A filter on another element must not narrow the signs.
-    METHODS given_other_element_then_none FOR TESTING.
+    METHODS given_other_element_then_none FOR TESTING RAISING cx_static_check.
 
     " ----- the request contract ---------------------------------------------
     "! Regression: paging and sorting must be read, or the framework answers 501.

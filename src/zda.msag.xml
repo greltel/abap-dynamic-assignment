@@ -14,6 +14,138 @@
      <MSGNR>001</MSGNR>
      <TEXT>Type conversion error: &amp;1</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>002</MSGNR>
+     <TEXT>RTTS error: &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>003</MSGNR>
+     <TEXT>No active variant found for parameter &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>004</MSGNR>
+     <TEXT>Database error: &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>005</MSGNR>
+     <TEXT>Invalid data element &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>006</MSGNR>
+     <TEXT>Invalid mapping data element &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>007</MSGNR>
+     <TEXT>Entry created at &amp;1 &amp;2 from user &amp;3</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>009</MSGNR>
+     <TEXT>Failed to write record for parameter &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>010</MSGNR>
+     <TEXT>Write error: &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>011</MSGNR>
+     <TEXT>Invalid or not allowed configuration table &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>012</MSGNR>
+     <TEXT>Inconsistent data elements for parameter &amp;1: &amp;2</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>013</MSGNR>
+     <TEXT>High value is mandatory for option &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>014</MSGNR>
+     <TEXT>Inconsistent mapping data elements for parameter &amp;1: &amp;2</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>015</MSGNR>
+     <TEXT>No free counter left for parameter &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>016</MSGNR>
+     <TEXT>Could not secure a free counter for parameter &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>017</MSGNR>
+     <TEXT>Parameter ID is mandatory</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>018</MSGNR>
+     <TEXT>Value is mandatory for parameter &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>019</MSGNR>
+     <TEXT>High value is only allowed for option BT and NB, not for &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>020</MSGNR>
+     <TEXT>Value cannot be converted to &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>021</MSGNR>
+     <TEXT>Value does not fit data element &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>022</MSGNR>
+     <TEXT>Value is not a valid date for &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>023</MSGNR>
+     <TEXT>Value is not a valid time for &amp;1</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZDA</ARBGB>
+     <MSGNR>024</MSGNR>
+     <TEXT>A non-default configuration table needs an allowed package list</TEXT>
+    </T100>
    </T100>
   </asx:values>
  </asx:abap>

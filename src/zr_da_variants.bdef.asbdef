@@ -1,4 +1,3 @@
-// ZR_DA_VARIANTS
 managed implementation in class zbp_r_da_variants unique;
 strict ( 2 );
 with draft;
