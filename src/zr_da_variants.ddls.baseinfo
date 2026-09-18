@@ -1,7 +1,7 @@
 {
   "BASEINFO": {
     "FROM": [
-      "ZR_DA_VARIANTS"
+      "ZTDA_VARIANTS"
     ]
   }
 }

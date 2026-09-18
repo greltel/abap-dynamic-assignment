@@ -3,6 +3,7 @@ strict ( 2 );
 use draft;
 
 define behavior for ZC_DA_VARIANTS alias Variants
+use etag
 {
   use create;
   use update;

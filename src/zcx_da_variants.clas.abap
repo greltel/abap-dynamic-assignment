@@ -40,7 +40,7 @@ CLASS zcx_da_variants IMPLEMENTATION.
 
     super->constructor( previous = previous ).
 
-    me->message_text = text.
+    message_text = text.
 
     CLEAR me->textid.
     if_t100_message~t100key = COND #( WHEN textid IS INITIAL
@@ -52,8 +52,8 @@ CLASS zcx_da_variants IMPLEMENTATION.
 
   METHOD if_message~get_text.
 
-    result = COND #( WHEN me->message_text IS NOT INITIAL
-                     THEN me->message_text
+    result = COND #( WHEN message_text IS NOT INITIAL
+                     THEN message_text
                      ELSE super->if_message~get_text( ) ).
 
   ENDMETHOD.

@@ -1,3 +1,4 @@
+// the DCL of ZR_DA_VARIANTS is inherited by this projection, a second role would only repeat it
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 
 @EndUserText.label: 'Projection View for Variants'
@@ -10,7 +11,7 @@
 
 define root view entity ZC_DA_VARIANTS
   provider contract transactional_query
-  as projection on ZI_DA_VARIANTS
+  as projection on ZR_DA_VARIANTS
 
 {
       @Consumption.valueHelpDefinition: [ { entity: { name: 'ZI_DA_PROGNAME_VH', element: 'Progname' } } ]

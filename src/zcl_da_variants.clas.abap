@@ -1,3 +1,8 @@
+"! <p class="shorttext synchronized" lang="EN">Dynamic assignment variants</p>
+"! Default implementation of {@link ZIF_DA_VARIANTS} on the configuration table
+"! {@link ZTDA_VARIANTS}, or on an injected table of the same structure.
+"! <p>Consumers hold the interface, not this class, so that the framework can be
+"! replaced by a test double.</p>
 CLASS zcl_da_variants DEFINITION
   PUBLIC
   FINAL
@@ -43,15 +48,17 @@ CLASS zcl_da_variants DEFINITION
     ALIASES delete_variant FOR zif_da_variants~delete_variant.
 
     "! Creates the framework on the default configuration table, or on an injected one.
-    "! <p>An injected table must be structurally identical to {@link ZDA_VARIANTS}
+    "! <p>An injected table must be structurally identical to {@link ZTDA_VARIANTS}
     "! and must reside in one of the allowed packages.</p>
     "!
-    "! @parameter table_name      | Configuration table, defaults to <em>ZDA_VARIANTS</em>
+    "! @parameter table_name      | Configuration table, defaults to <em>ZTDA_VARIANTS</em>
     "! @parameter packages        | Package list the table must belong to
+    "! @parameter system_context  | User and clock, defaults to the running session
     "! @raising   zcx_da_variants | Table is unknown or outside the allowed packages
     METHODS constructor
-      IMPORTING table_name TYPE ty_tabname OPTIONAL
-                packages   TYPE string     OPTIONAL
+      IMPORTING table_name     TYPE ty_tabname OPTIONAL
+                packages       TYPE string     OPTIONAL
+                system_context TYPE REF TO zif_da_system_context OPTIONAL
       RAISING   zcx_da_variants.
 
     "! Checks whether a name refers to an existing elementary DDIC type.
@@ -78,19 +85,18 @@ CLASS zcl_da_variants DEFINITION
 
   PRIVATE SECTION.
 
-    TYPES ty_user          TYPE zda_variants-created_by.
+    TYPES ty_user          TYPE zif_da_system_context=>ty_user.
     TYPES ty_data_elements TYPE STANDARD TABLE OF ty_data_el WITH EMPTY KEY.
 
     TYPES: "! Creation stamp of a row that is already stored.
       BEGIN OF ty_creation_info,
-        created_by TYPE zda_variants-created_by,
-        created_at TYPE zda_variants-created_at,
+        created_by TYPE ztda_variants-created_by,
+        created_at TYPE ztda_variants-created_at,
       END OF ty_creation_info.
 
-    CONSTANTS default_table    TYPE ty_tabname  VALUE 'ZDA_VARIANTS'         ##NO_TEXT.
+    CONSTANTS default_table    TYPE ty_tabname  VALUE 'ZTDA_VARIANTS'         ##NO_TEXT.
     CONSTANTS default_packages TYPE string      VALUE 'ZDA_DYNAMIC_ASSIGNMENT' ##NO_TEXT.
     CONSTANTS default_program  TYPE ty_progname VALUE 'GLOBAL'               ##NO_TEXT.
-    CONSTANTS fallback_user    TYPE ty_user     VALUE 'UNKNOWN'              ##NO_TEXT.
 
     "! Highest counter the NUMC(5) key can hold.
     CONSTANTS max_counter  TYPE i VALUE 99999.
@@ -133,6 +139,7 @@ CLASS zcl_da_variants DEFINITION
     CONSTANTS column_mapping   TYPE string VALUE `MAPPING_VALUE` ##NO_TEXT.
 
     DATA configuration_table TYPE ty_tabname.
+    DATA system_context      TYPE REF TO zif_da_system_context.
 
     "! Reads all active variants of one parameter, ordered by counter.
     "! @parameter parameter_id    | Parameter to read
@@ -379,11 +386,6 @@ CLASS zcl_da_variants DEFINITION
       IMPORTING creation_info TYPE ty_creation_info OPTIONAL
       CHANGING  row           TYPE ty_variant.
 
-    "! Returns the technical name of the current user, or a fallback.
-    "! @parameter result | User name, <em>UNKNOWN</em> when the context is unavailable
-    METHODS current_user
-      RETURNING VALUE(result) TYPE ty_user.
-
     "! Builds the description used when the caller does not supply one.
     "! @parameter user_name | Author of the row
     "! @parameter result    | Generated description
@@ -415,7 +417,7 @@ CLASS zcl_da_variants DEFINITION
     "! @parameter element         | Type the comparison runs in
     "! @parameter result          | <em>abap_true</em> when the rule answers
     "! @raising   zcx_da_variants | A bound or the input does not convert
-    CLASS-METHODS matches
+    CLASS-METHODS rule_accepts
       IMPORTING variant       TYPE ty_variant
                 input         TYPE ty_value
                 element       TYPE REF TO cl_abap_elemdescr
@@ -430,7 +432,7 @@ CLASS zcl_da_variants DEFINITION
     "! @parameter element         | Type the comparison runs in
     "! @parameter result          | <em>abap_true</em> when the rule answers
     "! @raising   zcx_da_variants | A bound or the input does not convert
-    CLASS-METHODS matches_typed
+    CLASS-METHODS rule_accepts_typed
       IMPORTING variant       TYPE ty_variant
                 input         TYPE ty_value
                 element       TYPE REF TO cl_abap_elemdescr
@@ -443,7 +445,7 @@ CLASS zcl_da_variants DEFINITION
     "! @parameter element         | Type the comparison runs in
     "! @parameter result          | <em>abap_true</em> when the rule answers
     "! @raising   zcx_da_variants | A bound or the input does not convert
-    CLASS-METHODS matches_bounds
+    CLASS-METHODS rule_accepts_bounds
       IMPORTING variant       TYPE ty_variant
                 input         TYPE ty_value
                 element       TYPE REF TO cl_abap_elemdescr
@@ -479,6 +481,11 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
     me->configuration_table = requested_table.
 
+    " the framework is instantiated without arguments in production, tests pass a fixed context
+    me->system_context = COND #( WHEN system_context IS BOUND
+                                 THEN system_context
+                                 ELSE NEW zcl_da_system_context( ) ).
+
   ENDMETHOD.
 
 
@@ -497,11 +504,11 @@ CLASS zcl_da_variants IMPLEMENTATION.
     DATA(first_variant) = VALUE ty_variant( variants[ 1 ] OPTIONAL ).
 
     TRY.
-        IF field_value IS REQUESTED.
+        IF field_value IS SUPPLIED.
           field_value = first_variant-value.
         ENDIF.
 
-        IF mapping_field_value IS REQUESTED.
+        IF mapping_field_value IS SUPPLIED.
           mapping_field_value = first_variant-mapping_value.
         ENDIF.
 
@@ -510,17 +517,17 @@ CLASS zcl_da_variants IMPLEMENTATION.
                                              previous = conversion_error ).
     ENDTRY.
 
-    IF range IS REQUESTED.
+    IF range IS SUPPLIED.
       fill_range( EXPORTING variants = variants
                   CHANGING  range    = range ).
     ENDIF.
 
-    IF values IS REQUESTED.
+    IF values IS SUPPLIED.
       fill_values( EXPORTING variants = variants
                    CHANGING  values   = values ).
     ENDIF.
 
-    IF mapping_values IS REQUESTED.
+    IF mapping_values IS SUPPLIED.
       mapping_values = build_mapping_table( variants ).
     ENDIF.
 
@@ -600,9 +607,9 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
     LOOP AT variants INTO DATA(variant).
 
-      IF matches( variant = variant
-                  input   = input
-                  element = element ) = abap_false.
+      IF rule_accepts( variant = variant
+                       input   = input
+                       element = element ) = abap_false.
         CONTINUE.
       ENDIF.
 
@@ -612,7 +619,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
       ENDIF.
 
       TRY.
-          IF mapping_value IS REQUESTED.
+          IF mapping_value IS SUPPLIED.
             mapping_value = variant-mapping_value.
           ENDIF.
 
@@ -631,7 +638,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD matches.
+  METHOD rule_accepts.
 
     " a pattern is character matching and stays on the stored strings
     IF variant-opt = base_cp.
@@ -644,19 +651,19 @@ CLASS zcl_da_variants IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    result = matches_typed( variant = variant
-                            input   = input
-                            element = element ).
+    result = rule_accepts_typed( variant = variant
+                                 input   = input
+                                 element = element ).
 
   ENDMETHOD.
 
 
-  METHOD matches_typed.
+  METHOD rule_accepts_typed.
 
     IF variant-opt = base_bt OR variant-opt = base_nb.
-      result = matches_bounds( variant = variant
-                               input   = input
-                               element = element ).
+      result = rule_accepts_bounds( variant = variant
+                                    input   = input
+                                    element = element ).
       RETURN.
     ENDIF.
 
@@ -691,7 +698,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD matches_bounds.
+  METHOD rule_accepts_bounds.
 
     DATA(typed_input) = check_convertible( value        = input
                                            data_element = variant-data_element
@@ -852,7 +859,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
     TRY.
         LOOP AT variants INTO DATA(variant).
 
-          APPEND INITIAL LINE TO range ASSIGNING FIELD-SYMBOL(<range_line>).
+          INSERT INITIAL LINE INTO TABLE range ASSIGNING FIELD-SYMBOL(<range_line>).
 
           ASSIGN COMPONENT component_sign OF STRUCTURE <range_line> TO FIELD-SYMBOL(<sign>).
           IF sy-subrc = 0.
@@ -891,7 +898,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
     TRY.
         LOOP AT variants INTO DATA(variant).
-          APPEND INITIAL LINE TO values ASSIGNING FIELD-SYMBOL(<value_line>).
+          INSERT INITIAL LINE INTO TABLE values ASSIGNING FIELD-SYMBOL(<value_line>).
           <value_line> = variant-value.
         ENDLOOP.
 
@@ -944,7 +951,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
     TRY.
         LOOP AT mapping_rows INTO DATA(variant).
 
-          APPEND INITIAL LINE TO <mapping_table> ASSIGNING FIELD-SYMBOL(<mapping_line>).
+          INSERT INITIAL LINE INTO TABLE <mapping_table> ASSIGNING FIELD-SYMBOL(<mapping_line>).
 
           ASSIGN COMPONENT column_value OF STRUCTURE <mapping_line> TO FIELD-SYMBOL(<value>).
           IF sy-subrc = 0.
@@ -976,7 +983,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
         IF me->configuration_table = default_table.
           " the Fiori application parks pending counters in the draft table
-          SELECT FROM zda_variants_d
+          SELECT FROM ztda_variants_d
             FIELDS MAX( counter ) AS counter
             WHERE progname    = @program_name
               AND parameterid = @parameter_id
@@ -1160,7 +1167,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
     DATA(element_name) = condense( CONV string( data_element ) ).
 
     IF strlen( text ) <> date_length OR text CN digits.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { data_element }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { element_name }| ).
     ENDIF.
 
     DATA(year)  = CONV i( substring( val = text off = 0 len = 4 ) ).
@@ -1171,7 +1178,9 @@ CLASS zcl_da_variants IMPLEMENTATION.
       RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { element_name }| ).
     ENDIF.
 
-    IF day < 1 OR day > last_day_of_month( year = year month = month ).
+    DATA(last_day) = last_day_of_month( year = year month = month ).
+
+    IF day < 1 OR day > last_day.
       RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { element_name }| ).
     ENDIF.
 
@@ -1184,7 +1193,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
     DATA(element_name) = condense( CONV string( data_element ) ).
 
     IF strlen( text ) <> time_length OR text CN digits.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-023 } { data_element }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-023 } { element_name }| ).
     ENDIF.
 
     DATA(hours)   = CONV i( substring( val = text off = 0 len = 2 ) ).
@@ -1283,11 +1292,9 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
 
   METHOD stamp_admin_fields.
-    DATA change_time TYPE zda_variants-created_at.
 
-    DATA(user_name) = current_user( ).
-
-    GET TIME STAMP FIELD change_time.
+    DATA(user_name)   = system_context->user_name( ).
+    DATA(change_time) = system_context->time_stamp( ).
 
     " replacing a row must not rewrite its original creator
     row-created_by            = COND #( WHEN creation_info-created_by IS NOT INITIAL
@@ -1306,30 +1313,13 @@ CLASS zcl_da_variants IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD current_user.
-
-    TRY.
-        result = cl_abap_context_info=>get_user_technical_name( ).
-
-      CATCH cx_abap_context_info_error.
-        result = fallback_user.
-    ENDTRY.
-
-  ENDMETHOD.
-
-
   METHOD default_description.
 
-    TRY.
-        DATA(current_date) = cl_abap_context_info=>get_system_date( ).
-        DATA(current_time) = cl_abap_context_info=>get_system_time( ).
+    DATA(current_date) = system_context->current_date( ).
+    DATA(current_time) = system_context->current_time( ).
 
-        result = |{ TEXT-007 } { current_date DATE = ISO } { current_time TIME = ISO } |
-              && |{ TEXT-008 } { user_name }|.
-
-      CATCH cx_abap_context_info_error.
-        result = |{ TEXT-008 } { user_name }|.
-    ENDTRY.
+    result = |{ TEXT-007 } { current_date DATE = ISO } { current_time TIME = ISO } |
+          && |{ TEXT-008 } { user_name }|.
 
   ENDMETHOD.
 

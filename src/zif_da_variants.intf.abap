@@ -1,7 +1,7 @@
 "! <p class="shorttext synchronized" lang="EN">Dynamic assignment variants</p>
 "! <h1>Dynamic runtime parameters</h1>
 "! <p>Decouples configuration values from code. Values, ranges and mappings are
-"! maintained in {@link ZDA_VARIANTS} and materialised at runtime with RTTS, so
+"! maintained in {@link ztda_variants} and materialised at runtime with RTTS, so
 "! that no program needs a hardcoded literal.</p>
 "! <p>Read with METH:get_variant, write with METH:set_variant.
 "! Failures are reported through {@link ZCX_DA_VARIANTS}.</p>
@@ -37,23 +37,23 @@ INTERFACE zif_da_variants
 
   TYPES:
     "! Program scope of a variant.
-    ty_progname    TYPE zda_variants-progname,
+    ty_progname    TYPE ztda_variants-progname,
     "! Parameter identifier.
-    ty_parameterid TYPE zda_variants-parameterid,
+    ty_parameterid TYPE ztda_variants-parameterid,
     "! Sequence number inside one program and parameter pair.
-    ty_counter     TYPE zda_variants-counter,
+    ty_counter     TYPE ztda_variants-counter,
     "! Raw variant value as stored in the configuration table.
-    ty_value       TYPE zda_variants-value,
+    ty_value       TYPE ztda_variants-value,
     "! Name of a DDIC data element.
-    ty_data_el     TYPE zda_variants-data_element,
+    ty_data_el     TYPE ztda_variants-data_element,
     "! Free description of a variant.
-    ty_description TYPE zda_variants-description,
+    ty_description TYPE ztda_variants-description,
     "! Name of a configuration table.
     ty_tabname     TYPE c LENGTH 30,
     "! Row type of the configuration table.
-    ty_variant     TYPE zda_variants,
+    ty_variant     TYPE ztda_variants,
     "! Configuration rows, ordered by counter.
-    ty_variants    TYPE STANDARD TABLE OF zda_variants WITH EMPTY KEY.
+    ty_variants    TYPE STANDARD TABLE OF ztda_variants WITH EMPTY KEY.
 
   "! Reads all active variants of a parameter and fills the requested targets.
   "! <p>Only the targets the caller actually supplies are computed. Every value is

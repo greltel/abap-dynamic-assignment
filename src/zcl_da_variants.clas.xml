@@ -5,7 +5,7 @@
    <VSEOCLASS>
     <CLSNAME>ZCL_DA_VARIANTS</CLSNAME>
     <LANGU>E</LANGU>
-    <DESCRIPT>Dynamic Assignment Variants</DESCRIPT>
+    <DESCRIPT>Dynamic assignment variants</DESCRIPT>
     <STATE>1</STATE>
     <CLSCCINCL>X</CLSCCINCL>
     <FIXPT>X</FIXPT>

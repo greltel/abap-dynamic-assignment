@@ -1,5 +1,40 @@
 *"* use this source file for your ABAP unit test classes
 
+"! Fixed user and clock, so that the stamped administrative fields are predictable.
+CLASS ltd_fixed_system_context DEFINITION FINAL FOR TESTING.
+
+  PUBLIC SECTION.
+
+    INTERFACES zif_da_system_context.
+
+    CONSTANTS user       TYPE zif_da_system_context=>ty_user       VALUE 'TESTUSER'         ##NO_TEXT.
+    CONSTANTS time_stamp TYPE zif_da_system_context=>ty_time_stamp VALUE '20260918120000.0000000'.
+    CONSTANTS today      TYPE d VALUE '20260918'.
+    CONSTANTS now        TYPE t VALUE '120000'.
+
+ENDCLASS.
+
+
+CLASS ltd_fixed_system_context IMPLEMENTATION.
+
+  METHOD zif_da_system_context~user_name.
+    result = user.
+  ENDMETHOD.
+
+  METHOD zif_da_system_context~time_stamp.
+    result = time_stamp.
+  ENDMETHOD.
+
+  METHOD zif_da_system_context~current_date.
+    result = today.
+  ENDMETHOD.
+
+  METHOD zif_da_system_context~current_time.
+    result = now.
+  ENDMETHOD.
+
+ENDCLASS.
+
 "! Covers {@link ZCL_DA_VARIANTS} through its public interface.
 "! <p>The configuration table is replaced by an Open SQL test double, so no test
 "! touches real data and no test depends on what happens to exist in the system.</p>
@@ -16,7 +51,7 @@ CLASS ltc_variants DEFINITION FINAL FOR TESTING
     CONSTANTS test_parameter TYPE zif_da_variants=>ty_parameterid  VALUE 'UNIT_TEST'    ##NO_TEXT.
     CONSTANTS global_program TYPE zif_da_variants=>ty_progname     VALUE 'GLOBAL'       ##NO_TEXT.
     CONSTANTS elementary_el  TYPE zif_da_variants=>ty_data_el      VALUE 'ZDE_DA_SIGN'  ##NO_TEXT.
-    CONSTANTS structured_el  TYPE zif_da_variants=>ty_data_el      VALUE 'ZDA_VARIANTS' ##NO_TEXT.
+    CONSTANTS structured_el  TYPE zif_da_variants=>ty_data_el      VALUE 'ZTDA_VARIANTS' ##NO_TEXT.
 
     CLASS-METHODS class_setup.
     CLASS-METHODS class_teardown.
@@ -77,6 +112,10 @@ CLASS ltc_variants DEFINITION FINAL FOR TESTING
     METHODS given_replace_then_creator    FOR TESTING RAISING cx_static_check.
     "! An omitted description is generated.
     METHODS given_no_descr_then_generated FOR TESTING RAISING cx_static_check.
+    "! The generated description names the date, the time and the user of the context.
+    METHODS given_no_descr_then_context   FOR TESTING RAISING cx_static_check.
+    "! A new row is stamped with the user and the time of the injected context.
+    METHODS given_new_then_stamped        FOR TESTING RAISING cx_static_check.
     "! A supplied description is stored unchanged.
     METHODS given_descr_then_kept         FOR TESTING RAISING cx_static_check.
     "! An omitted sign defaults to include.
@@ -128,12 +167,12 @@ CLASS ltc_variants DEFINITION FINAL FOR TESTING
                 mapping_data_el TYPE zif_da_variants=>ty_data_el     OPTIONAL
                 program_name    TYPE zif_da_variants=>ty_progname    DEFAULT test_program
                 parameter_id    TYPE zif_da_variants=>ty_parameterid DEFAULT test_parameter
-                created_by      TYPE zda_variants-created_by         OPTIONAL
+                created_by      TYPE ztda_variants-created_by         OPTIONAL
                 is_active       TYPE abap_boolean                    DEFAULT abap_true.
 
     METHODS read_row
       IMPORTING counter       TYPE zif_da_variants=>ty_counter DEFAULT '00001'
-      RETURNING VALUE(result) TYPE zda_variants.
+      RETURNING VALUE(result) TYPE ztda_variants.
 
     METHODS mapping_column_length
       IMPORTING mapping_values TYPE REF TO data
@@ -148,8 +187,8 @@ CLASS ltc_variants IMPLEMENTATION.
   METHOD class_setup.
     " the draft table is doubled as well, get_last_counter( ) reads it
     sql_environment = cl_osql_test_environment=>create(
-                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
-                                                       ( 'ZDA_VARIANTS_D' ) ) ).
+                          i_dependency_list = VALUE #( ( 'ZTDA_VARIANTS' )
+                                                       ( 'ZTDA_VARIANTS_D' ) ) ).
   ENDMETHOD.
 
   METHOD class_teardown.
@@ -158,7 +197,7 @@ CLASS ltc_variants IMPLEMENTATION.
 
   METHOD setup.
     sql_environment->clear_doubles( ).
-    cut = NEW zcl_da_variants( ).
+    cut = NEW zcl_da_variants( system_context = NEW ltd_fixed_system_context( ) ).
   ENDMETHOD.
 
 
@@ -638,6 +677,46 @@ CLASS ltc_variants IMPLEMENTATION.
 
   ENDMETHOD.
 
+  METHOD given_no_descr_then_context.
+
+    " when
+    cut->set_variant( parameter_id = test_parameter
+                      program_name = test_program
+                      field_value  = '1000' ).
+
+    " then - the fixed context must be visible in the text, in ISO format
+    DATA(description) = CONV string( read_row( )-description ).
+    DATA(user_name)   = CONV string( ltd_fixed_system_context=>user ).
+
+    cl_abap_unit_assert=>assert_true(
+        act = xsdbool( description CS `2026-09-18` AND description CS `12:00:00` AND description CS user_name )
+        msg = `The generated description must carry the date, time and user of the context` ).
+
+  ENDMETHOD.
+
+
+  METHOD given_new_then_stamped.
+
+    " when
+    cut->set_variant( parameter_id = test_parameter
+                      program_name = test_program
+                      field_value  = '1000' ).
+
+    " then
+    DATA(row) = read_row( ).
+
+    cl_abap_unit_assert=>assert_equals(
+        exp = ltd_fixed_system_context=>user
+        act = row-created_by
+        msg = `A new row must be created by the user of the injected context` ).
+
+    cl_abap_unit_assert=>assert_equals(
+        exp = ltd_fixed_system_context=>time_stamp
+        act = row-created_at
+        msg = `A new row must carry the time stamp of the injected context` ).
+
+  ENDMETHOD.
+
 
   METHOD given_descr_then_kept.
 
@@ -933,7 +1012,7 @@ CLASS ltc_variants IMPLEMENTATION.
   METHOD given_foreign_pack_then_error.
 
     TRY.
-        DATA(foreign) = NEW zcl_da_variants( table_name = 'ZDA_VARIANTS'
+        DATA(foreign) = NEW zcl_da_variants( table_name = 'ZTDA_VARIANTS'
                                              packages   = 'ZDA_NOT_MY_PACKAGE' ) ##NEEDED.
 
         cl_abap_unit_assert=>fail( msg = 'A table outside the allowed packages must be rejected' ).
@@ -966,7 +1045,7 @@ CLASS ltc_variants IMPLEMENTATION.
 
   METHOD read_row.
 
-    SELECT SINGLE FROM zda_variants
+    SELECT SINGLE FROM ztda_variants
       FIELDS progname, parameterid, counter, is_active, sign, opt,
              value, high_value, data_element, mapping_value, mapping_data_el,
              description, created_by, created_at
@@ -1071,7 +1150,7 @@ ENDCLASS.
 "! so mixed mapping types are accepted and the mapping column is typed from a row
 "! that carries no mapping value at all.</li>
 "! </ul>
-"! <p>Unlike {@link ltc_variants} this class also doubles ZDA_VARIANTS_D, so the
+"! <p>Unlike {@link ltc_variants} this class also doubles ZTDA_VARIANTS_D, so the
 "! counter tests no longer depend on what happens to sit in the real draft table.</p>
 CLASS ltc_defects DEFINITION FINAL FOR TESTING
   RISK LEVEL HARMLESS
@@ -1079,7 +1158,7 @@ CLASS ltc_defects DEFINITION FINAL FOR TESTING
 
   PRIVATE SECTION.
 
-    TYPES ty_drafts TYPE STANDARD TABLE OF zda_variants_d WITH EMPTY KEY.
+    TYPES ty_drafts TYPE STANDARD TABLE OF ztda_variants_d WITH EMPTY KEY.
 
     CLASS-DATA sql_environment TYPE REF TO if_osql_test_environment.
     DATA       cut             TYPE REF TO zif_da_variants.
@@ -1146,7 +1225,7 @@ CLASS ltc_defects DEFINITION FINAL FOR TESTING
 
     METHODS read_row
       IMPORTING counter       TYPE zif_da_variants=>ty_counter
-      RETURNING VALUE(result) TYPE zda_variants.
+      RETURNING VALUE(result) TYPE ztda_variants.
 
     METHODS count_rows
       RETURNING VALUE(result) TYPE i.
@@ -1163,8 +1242,8 @@ CLASS ltc_defects IMPLEMENTATION.
 
   METHOD class_setup.
     sql_environment = cl_osql_test_environment=>create(
-                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
-                                                       ( 'ZDA_VARIANTS_D' ) ) ).
+                          i_dependency_list = VALUE #( ( 'ZTDA_VARIANTS' )
+                                                       ( 'ZTDA_VARIANTS_D' ) ) ).
   ENDMETHOD.
 
   METHOD class_teardown.
@@ -1173,7 +1252,7 @@ CLASS ltc_defects IMPLEMENTATION.
 
   METHOD setup.
     sql_environment->clear_doubles( ).
-    cut = NEW zcl_da_variants( ).
+    cut = NEW zcl_da_variants( system_context = NEW ltd_fixed_system_context( ) ).
   ENDMETHOD.
 
 
@@ -1522,7 +1601,7 @@ CLASS ltc_defects IMPLEMENTATION.
 
   METHOD read_row.
 
-    SELECT SINGLE FROM zda_variants
+    SELECT SINGLE FROM ztda_variants
       FIELDS progname, parameterid, counter, is_active, sign, opt,
              value, high_value, data_element, mapping_value, mapping_data_el,
              description, created_by, created_at
@@ -1536,7 +1615,7 @@ CLASS ltc_defects IMPLEMENTATION.
 
   METHOD count_rows.
 
-    SELECT FROM zda_variants
+    SELECT FROM ztda_variants
       FIELDS COUNT( * )
       WHERE progname    = @test_program
         AND parameterid = @test_parameter
@@ -1622,7 +1701,7 @@ CLASS ltc_value_types DEFINITION FINAL FOR TESTING
 
     " ----- helpers ----------------------------------------------------------
     METHODS read_row
-      RETURNING VALUE(result) TYPE zda_variants.
+      RETURNING VALUE(result) TYPE ztda_variants.
 
 ENDCLASS.
 
@@ -1631,8 +1710,8 @@ CLASS ltc_value_types IMPLEMENTATION.
 
   METHOD class_setup.
     sql_environment = cl_osql_test_environment=>create(
-                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
-                                                       ( 'ZDA_VARIANTS_D' ) ) ).
+                          i_dependency_list = VALUE #( ( 'ZTDA_VARIANTS' )
+                                                       ( 'ZTDA_VARIANTS_D' ) ) ).
   ENDMETHOD.
 
   METHOD class_teardown.
@@ -1641,7 +1720,7 @@ CLASS ltc_value_types IMPLEMENTATION.
 
   METHOD setup.
     sql_environment->clear_doubles( ).
-    cut = NEW zcl_da_variants( ).
+    cut = NEW zcl_da_variants( system_context = NEW ltd_fixed_system_context( ) ).
   ENDMETHOD.
 
 
@@ -1829,7 +1908,7 @@ CLASS ltc_value_types IMPLEMENTATION.
 
   METHOD read_row.
 
-    SELECT SINGLE FROM zda_variants
+    SELECT SINGLE FROM ztda_variants
       FIELDS progname, parameterid, counter, is_active, sign, opt,
              value, high_value, data_element, mapping_value, mapping_data_el,
              description
@@ -1912,8 +1991,8 @@ CLASS ltc_mapping IMPLEMENTATION.
 
   METHOD class_setup.
     sql_environment = cl_osql_test_environment=>create(
-                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
-                                                       ( 'ZDA_VARIANTS_D' ) ) ).
+                          i_dependency_list = VALUE #( ( 'ZTDA_VARIANTS' )
+                                                       ( 'ZTDA_VARIANTS_D' ) ) ).
   ENDMETHOD.
 
   METHOD class_teardown.
@@ -1922,7 +2001,7 @@ CLASS ltc_mapping IMPLEMENTATION.
 
   METHOD setup.
     sql_environment->clear_doubles( ).
-    cut = NEW zcl_da_variants( ).
+    cut = NEW zcl_da_variants( system_context = NEW ltd_fixed_system_context( ) ).
   ENDMETHOD.
 
 
@@ -1941,9 +2020,14 @@ CLASS ltc_mapping IMPLEMENTATION.
 
     " then
     cl_abap_unit_assert=>assert_equals(
-        exp = |X{ 'OR' }|
-        act = |{ matched }{ mapped }|
-        msg = 'An EQ rule must map the value it names' ).
+        exp = abap_true
+        act = matched
+        msg = `An EQ rule must map the value it names` ).
+
+    cl_abap_unit_assert=>assert_equals(
+        exp = 'OR'
+        act = mapped
+        msg = `An EQ rule must map the value it names` ).
 
   ENDMETHOD.
 
@@ -2271,8 +2355,8 @@ CLASS ltc_delete IMPLEMENTATION.
 
   METHOD class_setup.
     sql_environment = cl_osql_test_environment=>create(
-                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
-                                                       ( 'ZDA_VARIANTS_D' ) ) ).
+                          i_dependency_list = VALUE #( ( 'ZTDA_VARIANTS' )
+                                                       ( 'ZTDA_VARIANTS_D' ) ) ).
   ENDMETHOD.
 
   METHOD class_teardown.
@@ -2281,7 +2365,7 @@ CLASS ltc_delete IMPLEMENTATION.
 
   METHOD setup.
     sql_environment->clear_doubles( ).
-    cut = NEW zcl_da_variants( ).
+    cut = NEW zcl_da_variants( system_context = NEW ltd_fixed_system_context( ) ).
   ENDMETHOD.
 
 
@@ -2392,7 +2476,7 @@ CLASS ltc_delete IMPLEMENTATION.
 
     TRY.
         cut->delete_variant( parameter_id = space
-                             program_name = test_program ) ##NEEDED.
+                             program_name = test_program ).
 
         cl_abap_unit_assert=>fail( msg = 'A delete without a parameter must be refused' ).
 
@@ -2419,7 +2503,7 @@ CLASS ltc_delete IMPLEMENTATION.
 
   METHOD count_rows.
 
-    SELECT FROM zda_variants
+    SELECT FROM ztda_variants
       FIELDS COUNT( * )
       WHERE progname    = @test_program
         AND parameterid = @parameter_id
