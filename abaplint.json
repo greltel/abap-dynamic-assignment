@@ -1,6 +1,9 @@
 {
   "global": {
-    "files": "/src/**/*.*"
+    "files": "/src/**/*.*",
+    "exclude": [
+      "zda\\.susc\\.xml$"
+    ]
   },
   "dependencies": [
     {
@@ -14,18 +17,109 @@
     "errorNamespace": "."
   },
   "rules": {
-    "check_syntax": true,
-    "exporting": true,
-    "unused_variables": {
+    "abapdoc": {
+      "checkLocal": false,
+      "classDefinition": true,
+      "interfaceDefinition": true
+    },
+    "align_parameters": false,
+    "align_type_expressions": false,
+    "avoid_use": {
+      "defaultKey": true,
+      "break": true,
+      "statics": true,
+      "describeLines": true
+    },
+    "begin_end_names": true,
+    "cds_comment_style": true,
+    "cds_legacy_view": true,
+    "chain_mainly_declarations": true,
+    "check_abstract": {
       "exclude": [
         "zbp_.*"
       ]
     },
-    "unused_types": true,
-    "unused_methods": {
-      "exclude": [
-        "zbp_.*"
+    "check_comments": {
+      "allowEndOfLine": true
+    },
+    "check_subrc": {
+      "openDataset": false,
+      "authorityCheck": false,
+      "selectSingle": false,
+      "selectTable": false,
+      "updateDatabase": false,
+      "insertDatabase": false,
+      "modifyDatabase": false,
+      "readTable": true,
+      "assign": true,
+      "find": true
+    },
+    "check_syntax": true,
+    "check_text_elements": true,
+    "class_attribute_names": false,
+    "cloud_types": true,
+    "constant_names": false,
+    "contains_tab": true,
+    "cyclomatic_complexity": {
+      "max": 12
+    },
+    "dangerous_statement": false,
+    "db_operation_in_loop": true,
+    "definitions_top": false,
+    "double_space": false,
+    "downport": false,
+    "empty_line_in_statement": {
+      "allowChained": true
+    },
+    "empty_statement": true,
+    "empty_structure": {
+      "loop": true,
+      "if": true,
+      "while": true,
+      "case": true,
+      "select": true,
+      "do": true,
+      "at": true,
+      "try": true,
+      "when": true
+    },
+    "exit_or_check": {
+      "allowExit": false,
+      "allowCheck": false
+    },
+    "exporting": true,
+    "forbidden_void_type": {
+      "check": [
+        "^boole_d$",
+        "^char1$",
+        "^flag$"
       ]
+    },
+    "identical_conditions": true,
+    "identical_contents": true,
+    "in_statement_indentation": false,
+    "indentation": {
+      "ignoreExceptions": true,
+      "alignTryCatch": false,
+      "selectionScreenBlockIndentation": false,
+      "globalClassSkipFirst": false,
+      "ignoreGlobalClassDefinition": false,
+      "ignoreGlobalInterface": false
+    },
+    "keep_single_parameter_on_one_line": false,
+    "keyword_case": {
+      "style": "upper",
+      "ignoreExceptions": true,
+      "ignoreLowerClassImplmentationStatement": true,
+      "ignoreGlobalClassDefinition": false,
+      "ignoreGlobalInterface": false,
+      "ignoreFunctionModuleName": false,
+      "ignoreGlobalClassBoundaries": false,
+      "ignoreKeywords": []
+    },
+    "line_break_multiple_parameters": false,
+    "line_length": {
+      "length": 120
     },
     "local_class_naming": {
       "severity": "Error",
@@ -34,7 +128,34 @@
       "exception": "^LCX_.+$",
       "test": "^LT[CDH]_.+$"
     },
+    "local_testclass_consistency": true,
+    "local_testclass_location": true,
+    "local_variable_names": false,
+    "main_file_contents": true,
+    "many_parentheses": true,
+    "max_one_statement": true,
+    "method_length": {
+      "statements": 40
+    },
+    "method_overwrites_builtin": true,
     "method_parameter_names": false,
+    "modify_only_own_db_tables": {
+      "reportDynamic": false,
+      "ownTables": "^[zy]"
+    },
+    "msag_consistency": true,
+    "nesting_depth": {
+      "depth": 4
+    },
+    "no_aliases": false,
+    "no_chained_assignment": true,
+    "no_dynamic_stuff": false,
+    "no_inline_in_optional_branches": false,
+    "no_prefixes": false,
+    "no_public_attributes": {
+      "allowReadOnly": true
+    },
+    "no_yoda_conditions": true,
     "object_naming": {
       "severity": "Error",
       "patternKind": "required",
@@ -57,31 +178,92 @@
       "ssst": "^Z",
       "shlp": "^Z"
     },
+    "obsolete_statement": {
+      "refresh": true,
+      "compute": true,
+      "add": true,
+      "subtract": true,
+      "multiply": true,
+      "divide": true,
+      "move": true,
+      "requested": true,
+      "occurs": true,
+      "setExtended": true,
+      "withHeaderLine": true,
+      "fieldSymbolStructure": true,
+      "typePools": true,
+      "load": true,
+      "parameter": true,
+      "ranges": true,
+      "communication": true,
+      "pack": true,
+      "selectWithoutInto": true,
+      "freeMemory": true,
+      "exitFromSQL": true,
+      "sortByFS": true,
+      "callTransformation": true,
+      "regex": true,
+      "occurences": true,
+      "clientSpecified": true,
+      "formDefinition": true,
+      "formImplementation": true
+    },
+    "omit_parameter_name": false,
+    "omit_receiving": true,
+    "prefer_corresponding": true,
+    "prefer_inline": true,
+    "prefer_insert_into_table": true,
+    "prefer_is_not": true,
+    "prefer_raise_exception_new": true,
+    "prefer_returning_to_exporting": false,
+    "prefer_xsdbool": true,
+    "prefix_is_current_class": true,
+    "reduce_string_templates": true,
+    "remove_descriptions": false,
+    "select_single_full_key": true,
+    "sequential_blank": {
+      "lines": 4
+    },
+    "short_case": {
+      "length": 1,
+      "allow": []
+    },
+    "space_before_colon": true,
+    "space_before_dot": {
+      "ignoreGlobalDefinition": true,
+      "ignoreExceptions": true
+    },
+    "sql_escape_host_variables": true,
+    "sql_value_conversion": true,
+    "superfluous_value": true,
+    "sy_modification": true,
+    "tabl_enhancement_category": true,
+    "try_without_catch": true,
+    "type_form_parameters": true,
     "types_naming": {
       "severity": "Error",
       "pattern": "^TY_.+$"
     },
-    "line_length": {
-      "length": 120
+    "uncaught_exception": true,
+    "unknown_types": true,
+    "unnecessary_pragma": {
+      "allowNoTextGlobal": true
     },
-    "max_one_statement": true,
-    "prefer_inline": true,
-    "prefer_is_not": true,
-    "prefer_xsdbool": true,
+    "unreachable_code": true,
+    "unsecure_fae": true,
+    "unused_ddic": true,
+    "unused_methods": {
+      "exclude": [
+        "zbp_.*"
+      ]
+    },
+    "unused_types": true,
+    "unused_variables": true,
+    "use_bool_expression": true,
+    "use_line_exists": true,
     "use_new": true,
-    "sql_escape_host_variables": true,
-    "avoid_use": {
-      "defaultKey": true,
-      "break": true,
-      "statics": true,
-      "describeLines": true
-    },
-    "identical_conditions": true,
-    "method_length": {
-      "statements": 40
-    },
-    "cyclomatic_complexity": {
-      "max": 12
-    }
+    "when_others_last": true,
+    "whitespace_end": true,
+    "xml_consistency": true
   }
 }
