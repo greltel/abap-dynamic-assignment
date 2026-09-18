@@ -10,14 +10,36 @@ CLASS lcl_variants_factory DEFINITION FINAL CREATE PRIVATE.
     CLASS-METHODS authorization
       RETURNING VALUE(result) TYPE REF TO zif_da_authorization.
 
+    "! Persistence the numbering handler reads the counters from.
+    "! @parameter result | Injected double, or the production repository on ZTDA_VARIANTS
+    CLASS-METHODS repository
+      RETURNING VALUE(result) TYPE REF TO zif_da_repository.
+
+    "! Type checks the validations run.
+    "! @parameter result | Injected double, or the production RTTS based check
+    CLASS-METHODS value_check
+      RETURNING VALUE(result) TYPE REF TO zif_da_value_check.
+
     "! Test hook. Pass an unbound reference to restore the production default.
     "! @parameter authorization | Double to serve from now on
     CLASS-METHODS inject_authorization
       IMPORTING authorization TYPE REF TO zif_da_authorization.
 
+    "! Test hook. Pass an unbound reference to restore the production default.
+    "! @parameter repository | Double to serve from now on
+    CLASS-METHODS inject_repository
+      IMPORTING repository TYPE REF TO zif_da_repository.
+
+    "! Test hook. Pass an unbound reference to restore the production default.
+    "! @parameter value_check | Double to serve from now on
+    CLASS-METHODS inject_value_check
+      IMPORTING value_check TYPE REF TO zif_da_value_check.
+
   PRIVATE SECTION.
 
     CLASS-DATA authorization_override TYPE REF TO zif_da_authorization.
+    CLASS-DATA repository_override    TYPE REF TO zif_da_repository.
+    CLASS-DATA value_check_override   TYPE REF TO zif_da_value_check.
 
 ENDCLASS.
 
@@ -30,8 +52,37 @@ CLASS lcl_variants_factory IMPLEMENTATION.
                      ELSE NEW zcl_da_authorization( ) ).
   ENDMETHOD.
 
+  METHOD repository.
+    IF repository_override IS BOUND.
+      result = repository_override.
+      RETURN.
+    ENDIF.
+
+    TRY.
+        result = NEW zcl_da_repository( ).
+
+      CATCH zcx_da_variants.
+        " the default table needs no validation, the constructor cannot raise for it
+        ASSERT 1 = 0.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD value_check.
+    result = COND #( WHEN value_check_override IS BOUND
+                     THEN value_check_override
+                     ELSE NEW zcl_da_value_check( ) ).
+  ENDMETHOD.
+
   METHOD inject_authorization.
     authorization_override = authorization.
+  ENDMETHOD.
+
+  METHOD inject_repository.
+    repository_override = repository.
+  ENDMETHOD.
+
+  METHOD inject_value_check.
+    value_check_override = value_check.
   ENDMETHOD.
 
 ENDCLASS.
@@ -40,20 +91,6 @@ ENDCLASS.
 CLASS lhc_variants DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
   PRIVATE SECTION.
-
-    TYPES: BEGIN OF ty_last_counter,
-             progname    TYPE ztda_variants-progname,
-             parameterid TYPE ztda_variants-parameterid,
-             counter     TYPE ztda_variants-counter,
-           END OF ty_last_counter.
-
-    TYPES ty_last_counters TYPE SORTED TABLE OF ty_last_counter
-                                WITH UNIQUE KEY progname parameterid.
-    "! Keys as they arrive in a request, duplicates included.
-    TYPES ty_counter_keys  TYPE STANDARD TABLE OF ty_last_counter WITH EMPTY KEY.
-
-    TYPES ty_program_range   TYPE RANGE OF ztda_variants-progname.
-    TYPES ty_parameter_range TYPE RANGE OF ztda_variants-parameterid.
 
     TYPES: BEGIN OF ty_element_check,
              element TYPE ztda_variants-data_element,
@@ -74,9 +111,6 @@ CLASS lhc_variants DEFINITION INHERITING FROM cl_abap_behavior_handler.
     CONSTANTS option_not_between TYPE zde_da_opt  VALUE 'NB' ##NO_TEXT.
     CONSTANTS option_equal       TYPE zde_da_opt  VALUE 'EQ' ##NO_TEXT.
     CONSTANTS sign_include       TYPE zde_da_sign VALUE 'I'  ##NO_TEXT.
-
-    CONSTANTS range_include TYPE c LENGTH 1 VALUE 'I'  ##NO_TEXT.
-    CONSTANTS range_equal   TYPE c LENGTH 2 VALUE 'EQ' ##NO_TEXT.
 
     CONSTANTS state_area_elements TYPE string VALUE `VALIDATE_DATA_ELEMENTS` ##NO_TEXT.
     CONSTANTS state_area_range    TYPE string VALUE `VALIDATE_RANGE`         ##NO_TEXT.
@@ -109,23 +143,6 @@ CLASS lhc_variants DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     METHODS checkvaluetypes FOR VALIDATE ON SAVE
       IMPORTING keys FOR variants~checkvaluetypes.
-
-    "! Reads the highest counter in use for every key of the request in one round trip.
-    "! <p>Active rows and pending drafts both block a counter. The numbering handler
-    "! needs the maximum across all instances of a key, which EML cannot answer, so
-    "! this is the one place in the pool that reads the tables directly.</p>
-    "! @parameter keys   | Program and parameter of every entity, duplicates allowed
-    "! @parameter result | Highest counter per program and parameter
-    METHODS read_last_counters
-      IMPORTING keys          TYPE ty_counter_keys
-      RETURNING VALUE(result) TYPE ty_last_counters.
-
-    "! Keeps the higher of a stored counter and the one already known for its key.
-    "! @parameter counter  | Counter read from one of the tables
-    "! @parameter counters | Highest counter per key, updated in place
-    METHODS merge_counter
-      IMPORTING counter  TYPE ty_last_counter
-      CHANGING  counters TYPE ty_last_counters.
 
 ENDCLASS.
 
@@ -196,7 +213,22 @@ CLASS lhc_variants IMPLEMENTATION.
 
   METHOD earlynumbering_create.
 
-    DATA(last_counters) = read_last_counters( CORRESPONDING #( entities ) ).
+    DATA(repository) = lcl_variants_factory=>repository( ).
+
+    TRY.
+        DATA(last_counters) = repository->read_last_counters( CORRESPONDING #( entities ) ).
+
+      CATCH zcx_da_variants INTO DATA(read_error).
+        " without the stored counters nothing can be numbered, every entity fails
+        LOOP AT entities INTO DATA(unnumbered).
+          INSERT VALUE #( %cid      = unnumbered-%cid
+                          %is_draft = unnumbered-%is_draft ) INTO TABLE failed-variants.
+          INSERT VALUE #( %cid      = unnumbered-%cid
+                          %is_draft = unnumbered-%is_draft
+                          %msg      = read_error ) INTO TABLE reported-variants.
+        ENDLOOP.
+        RETURN.
+    ENDTRY.
 
     LOOP AT entities INTO DATA(entity).
 
@@ -216,9 +248,8 @@ CLASS lhc_variants IMPLEMENTATION.
 
         INSERT VALUE #( %cid      = entity-%cid
                         %is_draft = entity-%is_draft
-                        %msg      = new_message_with_text(
-                                        severity = if_abap_behv_message=>severity-error
-                                        text     = |{ TEXT-004 } { entity-parameterid }| )
+                        %msg      = NEW zcx_da_variants( textid = zcx_da_variants=>counter_exhausted
+                                                         msgv1  = entity-parameterid )
                       ) INTO TABLE reported-variants.
         CONTINUE.
       ENDIF.
@@ -233,63 +264,6 @@ CLASS lhc_variants IMPLEMENTATION.
                       counter     = <last_counter>-counter ) INTO TABLE mapped-variants.
 
     ENDLOOP.
-
-  ENDMETHOD.
-
-
-  METHOD read_last_counters.
-
-    IF keys IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    DATA(programs)   = VALUE ty_program_range( FOR GROUPS program OF key IN keys
-                                               GROUP BY key-progname
-                                               ( sign = range_include option = range_equal low = program ) ).
-
-    DATA(parameters) = VALUE ty_parameter_range( FOR GROUPS parameter OF key IN keys
-                                                 GROUP BY key-parameterid
-                                                 ( sign = range_include option = range_equal low = parameter ) ).
-
-    SELECT FROM ztda_variants
-      FIELDS progname, parameterid, MAX( counter ) AS counter
-      WHERE progname    IN @programs
-        AND parameterid IN @parameters
-      GROUP BY progname, parameterid
-      INTO TABLE @DATA(active_counters).
-
-    " the Fiori application parks pending counters in the draft table
-    SELECT FROM ztda_variants_d
-      FIELDS progname, parameterid, MAX( counter ) AS counter
-      WHERE progname    IN @programs
-        AND parameterid IN @parameters
-      GROUP BY progname, parameterid
-      INTO TABLE @DATA(draft_counters).
-
-    LOOP AT active_counters INTO DATA(active_counter).
-      merge_counter( EXPORTING counter  = CORRESPONDING #( active_counter )
-                     CHANGING  counters = result ).
-    ENDLOOP.
-
-    LOOP AT draft_counters INTO DATA(draft_counter).
-      merge_counter( EXPORTING counter  = CORRESPONDING #( draft_counter )
-                     CHANGING  counters = result ).
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
-  METHOD merge_counter.
-
-    ASSIGN counters[ progname    = counter-progname
-                     parameterid = counter-parameterid ] TO FIELD-SYMBOL(<known>).
-
-    IF sy-subrc <> 0.
-      INSERT counter INTO TABLE counters.
-      RETURN.
-    ENDIF.
-
-    <known>-counter = nmax( val1 = <known>-counter val2 = counter-counter ).
 
   ENDMETHOD.
 
@@ -335,6 +309,8 @@ CLASS lhc_variants IMPLEMENTATION.
       WITH CORRESPONDING #( keys )
       RESULT DATA(variants).
 
+    DATA(value_check) = lcl_variants_factory=>value_check( ).
+
     LOOP AT variants INTO DATA(variant).
 
       " reset the messages of the previous run for this instance
@@ -347,7 +323,7 @@ CLASS lhc_variants IMPLEMENTATION.
 
       LOOP AT checks INTO DATA(check) WHERE element IS NOT INITIAL.
 
-        IF zcl_da_variants=>data_element_exists( check-element ) = abap_true.
+        IF value_check->data_element_exists( check-element ) = abap_true.
           CONTINUE.
         ENDIF.
 
@@ -359,9 +335,11 @@ CLASS lhc_variants IMPLEMENTATION.
                                                               THEN if_abap_behv=>mk-on )
                         %element-mappingdataelement = COND #( WHEN check-is_map = abap_true
                                                               THEN if_abap_behv=>mk-on )
-                        %msg        = new_message_with_text(
-                                          severity = if_abap_behv_message=>severity-error
-                                          text     = |{ TEXT-003 } { check-element }| )
+                        %msg        = NEW zcx_da_variants(
+                                          textid = COND #( WHEN check-is_map = abap_true
+                                                           THEN zcx_da_variants=>invalid_mapping_element
+                                                           ELSE zcx_da_variants=>invalid_data_element )
+                                          msgv1  = check-element )
                       ) INTO TABLE reported-variants.
 
       ENDLOOP.
@@ -390,9 +368,8 @@ CLASS lhc_variants IMPLEMENTATION.
         INSERT VALUE #( %tky               = variant-%tky
                         %state_area        = state_area_range
                         %element-highvalue = if_abap_behv=>mk-on
-                        %msg               = new_message_with_text(
-                                                 severity = if_abap_behv_message=>severity-error
-                                                 text     = |{ TEXT-001 } { variant-opt }| )
+                        %msg               = NEW zcx_da_variants( textid = zcx_da_variants=>high_value_missing
+                                                                      msgv1  = variant-opt )
                       ) INTO TABLE reported-variants.
         CONTINUE.
       ENDIF.
@@ -402,9 +379,8 @@ CLASS lhc_variants IMPLEMENTATION.
         INSERT VALUE #( %tky               = variant-%tky
                         %state_area        = state_area_range
                         %element-highvalue = if_abap_behv=>mk-on
-                        %msg               = new_message_with_text(
-                                                 severity = if_abap_behv_message=>severity-error
-                                                 text     = |{ TEXT-002 } { variant-opt }| )
+                        %msg               = NEW zcx_da_variants( textid = zcx_da_variants=>high_value_not_allowed
+                                                                      msgv1  = variant-opt )
                       ) INTO TABLE reported-variants.
       ENDIF.
 
@@ -419,6 +395,8 @@ CLASS lhc_variants IMPLEMENTATION.
       ENTITY variants FIELDS ( value highvalue dataelement mappingvalue mappingdataelement )
       WITH CORRESPONDING #( keys )
       RESULT DATA(variants).
+
+    DATA(value_check) = lcl_variants_factory=>value_check( ).
 
     LOOP AT variants INTO DATA(variant).
 
@@ -441,14 +419,14 @@ CLASS lhc_variants IMPLEMENTATION.
       LOOP AT checks INTO DATA(check) WHERE value IS NOT INITIAL AND element IS NOT INITIAL.
 
         " an unknown element is checkDataElements' finding, reporting it twice helps nobody
-        IF zcl_da_variants=>data_element_exists( check-element ) = abap_false.
+        IF value_check->data_element_exists( check-element ) = abap_false.
           CONTINUE.
         ENDIF.
 
         TRY.
             " one implementation for both doors into the configuration table
-            zcl_da_variants=>check_value( value        = check-value
-                                          data_element = check-element ).
+            value_check->check_value( value        = check-value
+                                      data_element = check-element ).
 
           CATCH zcx_da_variants INTO DATA(type_error).
 
@@ -462,9 +440,7 @@ CLASS lhc_variants IMPLEMENTATION.
                                                             THEN if_abap_behv=>mk-on )
                             %element-mappingvalue = COND #( WHEN check-target = element_mapping
                                                             THEN if_abap_behv=>mk-on )
-                            %msg        = new_message_with_text(
-                                              severity = if_abap_behv_message=>severity-error
-                                              text     = type_error->get_text( ) )
+                            %msg        = type_error
                           ) INTO TABLE reported-variants.
         ENDTRY.
 

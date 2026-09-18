@@ -154,6 +154,10 @@ CLASS ltc_variants DEFINITION FINAL FOR TESTING
     METHODS given_bad_table_then_error    FOR TESTING.
     "! A table outside the allowed packages must be rejected.
     METHODS given_foreign_pack_then_error FOR TESTING.
+    "! An injected table without a package list must be rejected.
+    METHODS given_no_packages_then_error  FOR TESTING.
+    "! The shipped table needs no package list.
+    METHODS given_default_table_then_ok   FOR TESTING RAISING cx_static_check.
 
     " ----- helpers --------------------------------------------------------
     METHODS insert_variant
@@ -998,7 +1002,8 @@ CLASS ltc_variants IMPLEMENTATION.
   METHOD given_bad_table_then_error.
 
     TRY.
-        DATA(unknown_table) = NEW zcl_da_variants( table_name = 'ZDA_NOT_A_TABLE' ) ##NEEDED.
+        DATA(unknown_table) = NEW zcl_da_variants( table_name = 'ZDA_NOT_A_TABLE'
+                                                   packages   = 'ZDA_DYNAMIC_ASSIGNMENT' ) ##NEEDED.
 
         cl_abap_unit_assert=>fail( msg = 'An unknown configuration table must be rejected' ).
 
@@ -1012,7 +1017,7 @@ CLASS ltc_variants IMPLEMENTATION.
   METHOD given_foreign_pack_then_error.
 
     TRY.
-        DATA(foreign) = NEW zcl_da_variants( table_name = 'ZTDA_VARIANTS'
+        DATA(foreign) = NEW zcl_da_variants( table_name = 'ZTDA_VARIANTS_D'
                                              packages   = 'ZDA_NOT_MY_PACKAGE' ) ##NEEDED.
 
         cl_abap_unit_assert=>fail( msg = 'A table outside the allowed packages must be rejected' ).
@@ -1020,6 +1025,36 @@ CLASS ltc_variants IMPLEMENTATION.
       CATCH zcx_da_variants.
         " then - expected
     ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_no_packages_then_error.
+
+    TRY.
+        DATA(unlisted) = NEW zcl_da_variants( table_name = 'ZTDA_VARIANTS_D' ) ##NEEDED.
+
+        cl_abap_unit_assert=>fail( msg = 'An injected table must come with the packages it may live in' ).
+
+      CATCH zcx_da_variants INTO DATA(error).
+        cl_abap_unit_assert=>assert_equals(
+            exp = zcx_da_variants=>packages_missing-msgno
+            act = error->if_t100_message~t100key-msgno
+            msg = `The missing package list must be named as the cause` ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD given_default_table_then_ok.
+
+    " when - the table the framework ships with, spelled in lower case, without packages
+    DATA(default_table) = NEW zcl_da_variants( table_name = 'ztda_variants' ).
+
+    " then
+    cl_abap_unit_assert=>assert_bound(
+        act = default_table
+        msg = `The shipped table must work without any package list` ).
 
   ENDMETHOD.
 
@@ -1078,44 +1113,48 @@ CLASS ltc_exception DEFINITION FINAL FOR TESTING
   DURATION SHORT.
 
   PRIVATE SECTION.
-    "! Regression for get_text( ) returning a blank generic message.
-    METHODS given_text_then_text_returned FOR TESTING.
-    "! Without a free text the T100 fallback must still answer.
-    METHODS given_no_text_then_no_dump    FOR TESTING.
+    "! The message variable must reach the text of the T100 message.
+    METHODS given_textid_then_text_filled FOR TESTING.
+    "! Without a text id the generic fallback must still answer.
+    METHODS given_no_textid_then_no_dump  FOR TESTING.
     "! The exception chain must survive.
     METHODS given_previous_then_chained   FOR TESTING.
+    "! The RAP framework must see an error unless told otherwise.
+    METHODS given_default_then_error_sev  FOR TESTING.
+    "! A message variable longer than 50 characters is cut, never dumped on.
+    METHODS given_long_msgv_then_cut      FOR TESTING.
 
 ENDCLASS.
 
 
 CLASS ltc_exception IMPLEMENTATION.
 
-  METHOD given_text_then_text_returned.
+  METHOD given_textid_then_text_filled.
 
     " given
-    DATA(error) = NEW zcx_da_variants( text = `configuration table not allowed` ).
+    DATA(error) = NEW zcx_da_variants( textid = zcx_da_variants=>no_active_variant
+                                       msgv1  = 'MY_PARAMETER' ).
 
     " then
-    cl_abap_unit_assert=>assert_equals(
-        exp = `configuration table not allowed`
-        act = error->get_text( )
-        msg = 'get_text( ) must return the dynamic message text' ).
+    cl_abap_unit_assert=>assert_true(
+        act = xsdbool( error->get_text( ) CS `MY_PARAMETER` )
+        msg = `get_text( ) must return the T100 text with the variable filled in` ).
 
   ENDMETHOD.
 
 
-  METHOD given_no_text_then_no_dump.
+  METHOD given_no_textid_then_no_dump.
 
     " given
     DATA(error) = NEW zcx_da_variants( ).
 
-    " when - the T100 fallback must answer without a short dump
-    DATA(fallback) = error->get_text( ) ##NEEDED.
+    " when - the generic fallback must answer without a short dump
+    DATA(fallback) = error->get_text( ).
 
     " then
-    cl_abap_unit_assert=>assert_bound(
-        act = error
-        msg = 'An exception without a free text must still be usable' ).
+    cl_abap_unit_assert=>assert_not_initial(
+        act = fallback
+        msg = `An exception without a text id must still describe itself` ).
 
   ENDMETHOD.
 
@@ -1123,35 +1162,49 @@ CLASS ltc_exception IMPLEMENTATION.
   METHOD given_previous_then_chained.
 
     " given
-    DATA(cause) = NEW zcx_da_variants( text = `root cause` ).
-    DATA(error) = NEW zcx_da_variants( text = `wrapper` previous = cause ).
+    DATA(cause) = NEW zcx_da_variants( textid = zcx_da_variants=>database_error ).
+    DATA(error) = NEW zcx_da_variants( textid   = zcx_da_variants=>write_error
+                                       previous = cause ).
 
     " then
     cl_abap_unit_assert=>assert_bound(
         act = error->previous
-        msg = 'The exception chain must be preserved' ).
+        msg = `The exception chain must be preserved` ).
+
+  ENDMETHOD.
+
+
+  METHOD given_default_then_error_sev.
+
+    " given
+    DATA(error) = NEW zcx_da_variants( textid = zcx_da_variants=>parameter_missing ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = if_abap_behv_message=>severity-error
+        act = error->if_abap_behv_message~m_severity
+        msg = `A framework message is an error unless a severity is passed` ).
+
+  ENDMETHOD.
+
+
+  METHOD given_long_msgv_then_cut.
+
+    " given - a cause text far longer than a message variable
+    DATA(error) = NEW zcx_da_variants( textid = zcx_da_variants=>database_error
+                                       msgv1  = repeat( val = `x` occ = 200 ) ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = 50
+        act = strlen( error->if_t100_dyn_msg~msgv1 )
+        msg = `A message variable holds 50 characters, the rest is cut` ).
 
   ENDMETHOD.
 
 ENDCLASS.
 
 
-"! Pins the three defects found after the 1.0.0 review of {@link ZCL_DA_VARIANTS}.
-"! <p>Every test describes the behaviour the framework must show. They are expected
-"! to be <strong>red</strong> until the corrections are delivered:</p>
-"! <ul>
-"! <li><em>Defect 1</em> - the append path of set_variant( ) writes with MODIFY, so a
-"! computed counter that is already taken replaces a stored row instead of being
-"! rejected. This is the single threaded, reproducible form of the numbering race.</li>
-"! <li><em>Defect 2</em> - fill_range( ) and fill_values( ) run outside a TRY, so a value
-"! that does not fit the caller's target ends in a short dump instead of
-"! {@link ZCX_DA_VARIANTS}.</li>
-"! <li><em>Defect 3</em> - consistency check and type resolution ignore MAPPING_DATA_EL,
-"! so mixed mapping types are accepted and the mapping column is typed from a row
-"! that carries no mapping value at all.</li>
-"! </ul>
-"! <p>Unlike {@link ltc_variants} this class also doubles ZTDA_VARIANTS_D, so the
-"! counter tests no longer depend on what happens to sit in the real draft table.</p>
 CLASS ltc_defects DEFINITION FINAL FOR TESTING
   RISK LEVEL HARMLESS
   DURATION SHORT.
@@ -1203,10 +1256,10 @@ CLASS ltc_defects DEFINITION FINAL FOR TESTING
     "! A blank value must be rejected on write.
     METHODS given_no_value_then_error      FOR TESTING.
 
-    " ----- defect 5, messages must carry their text symbol -------------------
-    "! The exhausted counter message must not start with an unmaintained symbol.
+    " ----- defect 5, messages must name their cause ---------------------------
+    "! The exhausted counter must be reported with its own message.
     METHODS given_no_counter_then_message  FOR TESTING.
-    "! The mixed mapping message must not start with an unmaintained symbol.
+    "! Mixed mapping data elements must be reported with their own message.
     METHODS given_mixed_map_then_message   FOR TESTING.
 
     " ----- helpers ----------------------------------------------------------
@@ -1527,11 +1580,11 @@ CLASS ltc_defects IMPLEMENTATION.
         cl_abap_unit_assert=>fail( msg = 'An append that cannot be numbered must be rejected' ).
 
       CATCH zcx_da_variants INTO DATA(counter_error).
-        " then - a leading blank means the text symbol was never maintained
-        cl_abap_unit_assert=>assert_differs(
-            exp = ` `
-            act = substring( val = counter_error->get_text( ) len = 1 )
-            msg = 'Text symbol 015 is missing, the message starts with a blank' ).
+        " then
+        cl_abap_unit_assert=>assert_equals(
+            exp = zcx_da_variants=>counter_exhausted-msgno
+            act = counter_error->if_t100_message~t100key-msgno
+            msg = `An exhausted counter must be reported as such` ).
     ENDTRY.
 
   ENDMETHOD.
@@ -1561,11 +1614,11 @@ CLASS ltc_defects IMPLEMENTATION.
         cl_abap_unit_assert=>fail( msg = 'Mixed mapping data elements must be rejected' ).
 
       CATCH zcx_da_variants INTO DATA(mapping_error).
-        " then - a leading blank means the text symbol was never maintained
-        cl_abap_unit_assert=>assert_differs(
-            exp = ` `
-            act = substring( val = mapping_error->get_text( ) len = 1 )
-            msg = 'Text symbol 014 is missing, the message starts with a blank' ).
+        " then
+        cl_abap_unit_assert=>assert_equals(
+            exp = zcx_da_variants=>inconsistent_mapping_elements-msgno
+            act = mapping_error->if_t100_message~t100key-msgno
+            msg = `Mixed mapping data elements must be reported as such` ).
     ENDTRY.
 
   ENDMETHOD.

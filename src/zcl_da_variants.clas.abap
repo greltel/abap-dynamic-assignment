@@ -1,8 +1,10 @@
 "! <p class="shorttext synchronized" lang="EN">Dynamic assignment variants</p>
-"! Default implementation of {@link ZIF_DA_VARIANTS} on the configuration table
-"! {@link ZTDA_VARIANTS}, or on an injected table of the same structure.
-"! <p>Consumers hold the interface, not this class, so that the framework can be
-"! replaced by a test double.</p>
+"! Default implementation of {@link ZIF_DA_VARIANTS}: the facade consumers hold.
+"! <p>Reading and writing goes through {@link ZIF_DA_REPOSITORY}, type checks
+"! through {@link ZIF_DA_VALUE_CHECK}, rule evaluation through
+"! {@link ZIF_DA_RULE_MATCHER} and user and clock through
+"! {@link ZIF_DA_SYSTEM_CONTEXT}. Every collaborator can be injected; without
+"! arguments the production set on {@link ZTDA_VARIANTS} is used.</p>
 CLASS zcl_da_variants DEFINITION
   PUBLIC
   FINAL
@@ -49,87 +51,38 @@ CLASS zcl_da_variants DEFINITION
 
     "! Creates the framework on the default configuration table, or on an injected one.
     "! <p>An injected table must be structurally identical to {@link ZTDA_VARIANTS}
-    "! and must reside in one of the allowed packages.</p>
+    "! and the caller names the packages it may live in. Collaborators passed here
+    "! replace the production ones; a repository passed here wins over table_name.</p>
     "!
     "! @parameter table_name      | Configuration table, defaults to <em>ZTDA_VARIANTS</em>
-    "! @parameter packages        | Package list the table must belong to
+    "! @parameter packages        | Package list an injected table must belong to
+    "! @parameter repository      | Persistence, defaults to {@link ZCL_DA_REPOSITORY}
+    "! @parameter value_check     | Type checks, defaults to {@link ZCL_DA_VALUE_CHECK}
+    "! @parameter rule_matcher    | Rule evaluation, defaults to {@link ZCL_DA_RULE_MATCHER}
     "! @parameter system_context  | User and clock, defaults to the running session
     "! @raising   zcx_da_variants | Table is unknown or outside the allowed packages
     METHODS constructor
       IMPORTING table_name     TYPE ty_tabname OPTIONAL
                 packages       TYPE string     OPTIONAL
+                repository     TYPE REF TO zif_da_repository     OPTIONAL
+                value_check    TYPE REF TO zif_da_value_check    OPTIONAL
+                rule_matcher   TYPE REF TO zif_da_rule_matcher   OPTIONAL
                 system_context TYPE REF TO zif_da_system_context OPTIONAL
-      RAISING   zcx_da_variants.
-
-    "! Checks whether a name refers to an existing elementary DDIC type.
-    "! @parameter data_element | Name to check
-    "! @parameter result       | <em>abap_true</em> when an elementary data element exists
-    CLASS-METHODS data_element_exists
-      IMPORTING data_element  TYPE ty_data_el
-      RETURNING VALUE(result) TYPE abap_boolean.
-
-    "! Rejects a value that its configured data element could not hold unchanged.
-    "! <p>Three losses happen without any runtime error and are caught here instead:
-    "! <em>NUMC</em> keeps the digits of the source and drops the rest, <em>CHAR</em>
-    "! truncates on the right, and a date field is character like, so a day that does
-    "! not exist in the calendar is copied straight in.</p>
-    "! <p>Leading zeros added by <em>NUMC</em> are not a loss and stay accepted.</p>
-    "!
-    "! @parameter value           | Value as it is stored in the configuration table
-    "! @parameter data_element    | Configured type, initial for the native column type
-    "! @raising   zcx_da_variants | The value would be truncated, filtered or is no date
-    CLASS-METHODS check_value
-      IMPORTING value        TYPE ty_value
-                data_element TYPE ty_data_el
       RAISING   zcx_da_variants.
 
   PRIVATE SECTION.
 
-    TYPES ty_user          TYPE zif_da_system_context=>ty_user.
     TYPES ty_data_elements TYPE STANDARD TABLE OF ty_data_el WITH EMPTY KEY.
 
-    TYPES: "! Creation stamp of a row that is already stored.
-      BEGIN OF ty_creation_info,
-        created_by TYPE ztda_variants-created_by,
-        created_at TYPE ztda_variants-created_at,
-      END OF ty_creation_info.
-
-    CONSTANTS default_table    TYPE ty_tabname  VALUE 'ZTDA_VARIANTS'         ##NO_TEXT.
-    CONSTANTS default_packages TYPE string      VALUE 'ZDA_DYNAMIC_ASSIGNMENT' ##NO_TEXT.
-    CONSTANTS default_program  TYPE ty_progname VALUE 'GLOBAL'               ##NO_TEXT.
+    CONSTANTS default_program TYPE ty_progname VALUE 'GLOBAL' ##NO_TEXT.
 
     "! Highest counter the NUMC(5) key can hold.
     CONSTANTS max_counter  TYPE i VALUE 99999.
     "! Times an append retries after another LUW took the allocated counter.
     CONSTANTS max_attempts TYPE i VALUE 5.
 
-    TYPES ty_month_lengths TYPE STANDARD TABLE OF i WITH EMPTY KEY.
-
-    " variant-opt and variant-sign carry the base type of the enumerations, and an
-    " enumerated value can only be compared with its own enumerated type, so the
-    " operators the rule evaluation needs are declared once in the base type here
-    CONSTANTS base_exclude TYPE ty_base_sign VALUE 'E'  ##NO_TEXT.
-    CONSTANTS base_eq      TYPE ty_base_opt  VALUE 'EQ' ##NO_TEXT.
-    CONSTANTS base_ne      TYPE ty_base_opt  VALUE 'NE' ##NO_TEXT.
-    CONSTANTS base_bt      TYPE ty_base_opt  VALUE 'BT' ##NO_TEXT.
-    CONSTANTS base_nb      TYPE ty_base_opt  VALUE 'NB' ##NO_TEXT.
-    CONSTANTS base_cp      TYPE ty_base_opt  VALUE 'CP' ##NO_TEXT.
-    CONSTANTS base_np      TYPE ty_base_opt  VALUE 'NP' ##NO_TEXT.
-    CONSTANTS base_lt      TYPE ty_base_opt  VALUE 'LT' ##NO_TEXT.
-    CONSTANTS base_le      TYPE ty_base_opt  VALUE 'LE' ##NO_TEXT.
-    CONSTANTS base_gt      TYPE ty_base_opt  VALUE 'GT' ##NO_TEXT.
-    CONSTANTS base_ge      TYPE ty_base_opt  VALUE 'GE' ##NO_TEXT.
-
-    CONSTANTS digits      TYPE string VALUE `0123456789` ##NO_TEXT.
-    CONSTANTS date_length TYPE i VALUE 8.
-    CONSTANTS time_length TYPE i VALUE 6.
-    CONSTANTS february    TYPE i VALUE 2.
-    CONSTANTS leap_day    TYPE i VALUE 29.
-    CONSTANTS max_year    TYPE i VALUE 9999.
-    CONSTANTS max_month   TYPE i VALUE 12.
-    CONSTANTS max_hour    TYPE i VALUE 23.
-    CONSTANTS max_minute  TYPE i VALUE 59.
-    CONSTANTS max_second  TYPE i VALUE 59.
+    " variant-sign carries the base type of the enumeration, see the rule matcher
+    CONSTANTS base_exclude TYPE ty_base_sign VALUE 'E' ##NO_TEXT.
 
     CONSTANTS component_sign   TYPE string VALUE `SIGN`          ##NO_TEXT.
     CONSTANTS component_option TYPE string VALUE `OPTION`        ##NO_TEXT.
@@ -138,8 +91,17 @@ CLASS zcl_da_variants DEFINITION
     CONSTANTS column_value     TYPE string VALUE `VALUE`         ##NO_TEXT.
     CONSTANTS column_mapping   TYPE string VALUE `MAPPING_VALUE` ##NO_TEXT.
 
-    DATA configuration_table TYPE ty_tabname.
-    DATA system_context      TYPE REF TO zif_da_system_context.
+    DATA repository     TYPE REF TO zif_da_repository.
+    DATA value_check    TYPE REF TO zif_da_value_check.
+    DATA rule_matcher   TYPE REF TO zif_da_rule_matcher.
+    DATA system_context TYPE REF TO zif_da_system_context.
+
+    "! Normalises the program scope the caller passed.
+    "! @parameter program_name | Program name, may be initial
+    "! @parameter result       | Upper case program name, the global scope when initial
+    METHODS program_scope
+      IMPORTING program_name  TYPE ty_progname
+      RETURNING VALUE(result) TYPE ty_progname.
 
     "! Reads all active variants of one parameter, ordered by counter.
     "! @parameter parameter_id    | Parameter to read
@@ -165,84 +127,6 @@ CLASS zcl_da_variants DEFINITION
     METHODS mapping_variants
       IMPORTING variants      TYPE ty_variants
       RETURNING VALUE(result) TYPE ty_variants.
-
-    "! Resolves the DDIC type of a variant column.
-    "! @parameter data_element    | Configured data element, may be initial
-    "! @parameter sample_value    | Fallback value used when no data element is configured
-    "! @parameter result          | Element description of the resolved type
-    "! @raising   zcx_da_variants | The configured data element does not exist
-    CLASS-METHODS resolve_element_type
-      IMPORTING data_element  TYPE ty_data_el
-                sample_value  TYPE ty_value
-      RETURNING VALUE(result) TYPE REF TO cl_abap_elemdescr
-      RAISING   zcx_da_variants.
-
-    "! Writes the value into its configured type and reports what the type refuses.
-    "! @parameter value           | Value to convert
-    "! @parameter data_element    | Configured data element, named in the message
-    "! @parameter element         | Resolved type of the data element
-    "! @parameter result          | Data reference holding the converted value
-    "! @raising   zcx_da_variants | The conversion failed or overflowed
-    CLASS-METHODS check_convertible
-      IMPORTING value         TYPE ty_value
-                data_element  TYPE ty_data_el
-                element       TYPE REF TO cl_abap_elemdescr
-      RETURNING VALUE(result) TYPE REF TO data
-      RAISING   zcx_da_variants.
-
-    "! Rejects a value that a character like type would truncate or filter.
-    "! @parameter value           | Value to convert
-    "! @parameter data_element    | Configured data element, named in the message
-    "! @parameter element         | Resolved type of the data element
-    "! @raising   zcx_da_variants | The value does not survive the round trip
-    CLASS-METHODS check_round_trip
-      IMPORTING value        TYPE ty_value
-                data_element TYPE ty_data_el
-                element      TYPE REF TO cl_abap_elemdescr
-      RAISING   zcx_da_variants.
-
-    "! Rejects a value that is not a day the calendar knows.
-    "! @parameter value           | Value to check, expected as YYYYMMDD
-    "! @parameter data_element    | Configured data element, named in the message
-    "! @raising   zcx_da_variants | The value is no valid date
-    CLASS-METHODS check_date
-      IMPORTING value        TYPE ty_value
-                data_element TYPE ty_data_el
-      RAISING   zcx_da_variants.
-
-    "! Rejects a value that is not a time of day.
-    "! @parameter value           | Value to check, expected as HHMMSS
-    "! @parameter data_element    | Configured data element, named in the message
-    "! @raising   zcx_da_variants | The value is no valid time
-    CLASS-METHODS check_time
-      IMPORTING value        TYPE ty_value
-                data_element TYPE ty_data_el
-      RAISING   zcx_da_variants.
-
-    "! Strips what a type adds by itself, so that only real losses remain visible.
-    "! @parameter value     | Value to normalise
-    "! @parameter type_kind | Type kind of the target, drives the leading zero rule
-    "! @parameter result    | Comparable form of the value
-    CLASS-METHODS normalized
-      IMPORTING value         TYPE ty_value
-                type_kind     TYPE abap_typekind
-      RETURNING VALUE(result) TYPE string.
-
-    "! Returns the last day the given month has in the given year.
-    "! @parameter year   | Calendar year, drives the leap year rule
-    "! @parameter month  | Calendar month between 1 and 12
-    "! @parameter result | Last day of that month
-    CLASS-METHODS last_day_of_month
-      IMPORTING year          TYPE i
-                month         TYPE i
-      RETURNING VALUE(result) TYPE i.
-
-    "! Answers whether February has 29 days in the given year.
-    "! @parameter year   | Calendar year
-    "! @parameter result | <em>abap_true</em> for a leap year
-    CLASS-METHODS is_leap_year
-      IMPORTING year          TYPE i
-      RETURNING VALUE(result) TYPE abap_boolean.
 
     "! Appends one range line per variant to the caller's own range table.
     "! <p>The caller's table is emptied again when a stored value does not fit the
@@ -273,17 +157,6 @@ CLASS zcl_da_variants DEFINITION
     METHODS build_mapping_table
       IMPORTING variants      TYPE ty_variants
       RETURNING VALUE(result) TYPE REF TO data
-      RAISING   zcx_da_variants.
-
-    "! Returns the highest counter currently stored for one parameter.
-    "! @parameter parameter_id    | Parameter to inspect
-    "! @parameter program_name    | Program scope
-    "! @parameter result          | Highest counter, initial when nothing is stored
-    "! @raising   zcx_da_variants | The configuration table could not be read
-    METHODS get_last_counter
-      IMPORTING parameter_id  TYPE ty_parameterid
-                program_name  TYPE ty_progname
-      RETURNING VALUE(result) TYPE ty_counter
       RAISING   zcx_da_variants.
 
     "! Allocates the counter that follows the highest one currently in use.
@@ -370,87 +243,28 @@ CLASS zcl_da_variants DEFINITION
                 high_value TYPE ty_value
       RAISING   zcx_da_variants.
 
-    "! Reads the creation stamp of a row that is about to be replaced.
-    "! @parameter row             | Variant row carrying the key to look up
-    "! @parameter result          | Stored creation stamp, initial when the row is new
-    "! @raising   zcx_da_variants | The configuration table could not be read
-    METHODS read_creation_info
-      IMPORTING row           TYPE ty_variant
-      RETURNING VALUE(result) TYPE ty_creation_info
-      RAISING   zcx_da_variants.
-
     "! Fills the administrative fields and the generated description.
     "! @parameter creation_info | Stamp to keep, initial for a row that is created
     "! @parameter row           | Variant row, completed in place
     METHODS stamp_admin_fields
-      IMPORTING creation_info TYPE ty_creation_info OPTIONAL
+      IMPORTING creation_info TYPE zif_da_repository=>ty_creation_info OPTIONAL
       CHANGING  row           TYPE ty_variant.
 
     "! Builds the description used when the caller does not supply one.
     "! @parameter user_name | Author of the row
     "! @parameter result    | Generated description
     METHODS default_description
-      IMPORTING user_name     TYPE ty_user
+      IMPORTING user_name     TYPE zif_da_system_context=>ty_user
       RETURNING VALUE(result) TYPE ty_description.
 
-    "! Replaces one completed variant row in the configuration table.
-    "! <p>Only the replace path uses this. Overwriting a stored row is the point
-    "! here, which is why the caller has to supply the counter explicitly.</p>
-    "! @parameter row             | Variant row to store
-    "! @raising   zcx_da_variants | The database rejected the row
-    METHODS persist_row
-      IMPORTING row TYPE ty_variant
-      RAISING   zcx_da_variants.
-
-    "! Inserts one completed variant row without ever replacing a stored one.
-    "! @parameter row             | Variant row to insert
-    "! @parameter result          | <em>abap_false</em> when the key was already taken
-    "! @raising   zcx_da_variants | The configuration table could not be written
-    METHODS insert_row
-      IMPORTING row           TYPE ty_variant
-      RETURNING VALUE(result) TYPE abap_boolean
-      RAISING   zcx_da_variants.
-
-    "! Answers whether one rule accepts the input value.
-    "! @parameter variant         | Rule to evaluate, carries sign, option and bounds
-    "! @parameter input           | Value to classify
-    "! @parameter element         | Type the comparison runs in
-    "! @parameter result          | <em>abap_true</em> when the rule answers
-    "! @raising   zcx_da_variants | A bound or the input does not convert
-    CLASS-METHODS rule_accepts
-      IMPORTING variant       TYPE ty_variant
-                input         TYPE ty_value
-                element       TYPE REF TO cl_abap_elemdescr
-      RETURNING VALUE(result) TYPE abap_boolean
-      RAISING   zcx_da_variants.
-
-    "! Compares input and lower bound in the configured type.
-    "! <p>Comparing in the DDIC type is what keeps 9 below 100. On the stored
-    "! 255 character strings the same comparison would answer the other way.</p>
-    "! @parameter variant         | Rule to evaluate
-    "! @parameter input           | Value to classify
-    "! @parameter element         | Type the comparison runs in
-    "! @parameter result          | <em>abap_true</em> when the rule answers
-    "! @raising   zcx_da_variants | A bound or the input does not convert
-    CLASS-METHODS rule_accepts_typed
-      IMPORTING variant       TYPE ty_variant
-                input         TYPE ty_value
-                element       TYPE REF TO cl_abap_elemdescr
-      RETURNING VALUE(result) TYPE abap_boolean
-      RAISING   zcx_da_variants.
-
-    "! Evaluates the two sided operators BT and NB in the configured type.
-    "! @parameter variant         | Rule to evaluate, must carry both bounds
-    "! @parameter input           | Value to classify
-    "! @parameter element         | Type the comparison runs in
-    "! @parameter result          | <em>abap_true</em> when the rule answers
-    "! @raising   zcx_da_variants | A bound or the input does not convert
-    CLASS-METHODS rule_accepts_bounds
-      IMPORTING variant       TYPE ty_variant
-                input         TYPE ty_value
-                element       TYPE REF TO cl_abap_elemdescr
-      RETURNING VALUE(result) TYPE abap_boolean
-      RAISING   zcx_da_variants.
+    "! Wraps a conversion error into the framework exception.
+    "! @parameter conversion_error | Cause
+    "! @parameter counter          | Row the value came from, initial for the input
+    "! @parameter result           | Exception to raise, cause chained
+    METHODS conversion_failed
+      IMPORTING conversion_error TYPE REF TO cx_sy_conversion_error
+                counter          TYPE ty_counter OPTIONAL
+      RETURNING VALUE(result)    TYPE REF TO zcx_da_variants.
 
 ENDCLASS.
 
@@ -461,30 +275,29 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   METHOD constructor.
 
-    DATA(requested_table) = CONV ty_tabname( to_upper(
-                                COND #( WHEN table_name IS NOT INITIAL
-                                        THEN table_name
-                                        ELSE default_table ) ) ).
-
-    DATA(allowed_packages) = COND string( WHEN packages IS NOT INITIAL
-                                          THEN packages
-                                          ELSE default_packages ).
-
-    TRY.
-        cl_abap_dyn_prg=>check_table_name_str( val      = CONV string( requested_table )
-                                               packages = allowed_packages ).
-
-      CATCH cx_abap_not_a_table cx_abap_not_in_package INTO DATA(table_error).
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-011 } { requested_table }|
-                                             previous = table_error ).
-    ENDTRY.
-
-    me->configuration_table = requested_table.
-
-    " the framework is instantiated without arguments in production, tests pass a fixed context
+    " the framework is instantiated without arguments in production, tests pass doubles
+    me->repository     = COND #( WHEN repository IS BOUND
+                                 THEN repository
+                                 ELSE NEW zcl_da_repository( table_name = table_name
+                                                             packages   = packages ) ).
+    me->value_check    = COND #( WHEN value_check IS BOUND
+                                 THEN value_check
+                                 ELSE NEW zcl_da_value_check( ) ).
+    me->rule_matcher   = COND #( WHEN rule_matcher IS BOUND
+                                 THEN rule_matcher
+                                 ELSE NEW zcl_da_rule_matcher( me->value_check ) ).
     me->system_context = COND #( WHEN system_context IS BOUND
                                  THEN system_context
                                  ELSE NEW zcl_da_system_context( ) ).
+
+  ENDMETHOD.
+
+
+  METHOD program_scope.
+
+    result = to_upper( COND ty_progname( WHEN program_name IS NOT INITIAL
+                                         THEN program_name
+                                         ELSE default_program ) ).
 
   ENDMETHOD.
 
@@ -494,10 +307,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
     CLEAR: field_value, mapping_field_value, values, mapping_values, range.
 
     DATA(parameter) = CONV ty_parameterid( to_upper( parameter_id ) ).
-    DATA(program)   = CONV ty_progname( to_upper(
-                          COND #( WHEN program_name IS NOT INITIAL
-                                  THEN program_name
-                                  ELSE default_program ) ) ).
+    DATA(program)   = program_scope( program_name ).
 
     DATA(variants)      = read_variants( parameter_id = parameter
                                          program_name = program ).
@@ -513,8 +323,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
         ENDIF.
 
       CATCH cx_sy_conversion_error INTO DATA(conversion_error).
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-001 } { conversion_error->get_text( ) }|
-                                             previous = conversion_error ).
+        RAISE EXCEPTION conversion_failed( conversion_error ).
     ENDTRY.
 
     IF range IS SUPPLIED.
@@ -537,10 +346,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
   METHOD zif_da_variants~set_variant.
 
     DATA(parameter) = CONV ty_parameterid( to_upper( parameter_id ) ).
-    DATA(program)   = CONV ty_progname( to_upper(
-                          COND #( WHEN program_name IS NOT INITIAL
-                                  THEN program_name
-                                  ELSE default_program ) ) ).
+    DATA(program)   = program_scope( program_name ).
 
     DATA(element)         = CONV ty_data_el( to_upper( data_element ) ).
     DATA(mapping_element) = CONV ty_data_el( to_upper( mapping_data_element ) ).
@@ -575,9 +381,9 @@ CLASS zcl_da_variants IMPLEMENTATION.
       append_row( CHANGING row = row ).
     ELSE.
       " replace - the caller owns the key, so overwriting the row is intended
-      stamp_admin_fields( EXPORTING creation_info = read_creation_info( row )
+      stamp_admin_fields( EXPORTING creation_info = repository->read_creation_info( row )
                           CHANGING  row           = row ).
-      persist_row( row ).
+      repository->replace_row( row ).
     ENDIF.
 
     IF commit = abap_true.
@@ -592,24 +398,21 @@ CLASS zcl_da_variants IMPLEMENTATION.
     CLEAR: mapping_value, matched.
 
     DATA(parameter) = CONV ty_parameterid( to_upper( parameter_id ) ).
-    DATA(program)   = CONV ty_progname( to_upper(
-                          COND #( WHEN program_name IS NOT INITIAL
-                                  THEN program_name
-                                  ELSE default_program ) ) ).
+    DATA(program)   = program_scope( program_name ).
 
     DATA(variants) = read_variants( parameter_id = parameter
                                     program_name = program ).
 
     " every row of one parameter shares the type, read_variants( ) has checked that
     DATA(first_variant) = VALUE ty_variant( variants[ 1 ] OPTIONAL ).
-    DATA(element)       = resolve_element_type( data_element = first_variant-data_element
-                                                sample_value = first_variant-value ).
+    DATA(element)       = value_check->resolve_element_type( data_element = first_variant-data_element
+                                                             sample_value = first_variant-value ).
 
     LOOP AT variants INTO DATA(variant).
 
-      IF rule_accepts( variant = variant
-                       input   = input
-                       element = element ) = abap_false.
+      IF rule_matcher->accepts( variant = variant
+                                input   = input
+                                element = element ) = abap_false.
         CONTINUE.
       ENDIF.
 
@@ -624,10 +427,8 @@ CLASS zcl_da_variants IMPLEMENTATION.
           ENDIF.
 
         CATCH cx_sy_conversion_error INTO DATA(conversion_error).
-          RAISE EXCEPTION NEW
-            zcx_da_variants(
-              text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
-              previous = conversion_error ).
+          RAISE EXCEPTION conversion_failed( conversion_error = conversion_error
+                                             counter          = variant-counter ).
       ENDTRY.
 
       matched = abap_true.
@@ -638,125 +439,19 @@ CLASS zcl_da_variants IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD rule_accepts.
-
-    " a pattern is character matching and stays on the stored strings
-    IF variant-opt = base_cp.
-      result = xsdbool( input CP variant-value ).
-      RETURN.
-    ENDIF.
-
-    IF variant-opt = base_np.
-      result = xsdbool( input NP variant-value ).
-      RETURN.
-    ENDIF.
-
-    result = rule_accepts_typed( variant = variant
-                                 input   = input
-                                 element = element ).
-
-  ENDMETHOD.
-
-
-  METHOD rule_accepts_typed.
-
-    IF variant-opt = base_bt OR variant-opt = base_nb.
-      result = rule_accepts_bounds( variant = variant
-                                    input   = input
-                                    element = element ).
-      RETURN.
-    ENDIF.
-
-    DATA(typed_input) = check_convertible( value        = input
-                                           data_element = variant-data_element
-                                           element      = element ).
-
-    DATA(typed_low)   = check_convertible( value        = variant-value
-                                           data_element = variant-data_element
-                                           element      = element ).
-
-    ASSIGN typed_input->* TO FIELD-SYMBOL(<input>).
-    ASSIGN typed_low->*   TO FIELD-SYMBOL(<low>).
-
-    CASE variant-opt.
-      WHEN base_eq.
-        result = xsdbool( <input> =  <low> ).
-      WHEN base_ne.
-        result = xsdbool( <input> <> <low> ).
-      WHEN base_lt.
-        result = xsdbool( <input> <  <low> ).
-      WHEN base_le.
-        result = xsdbool( <input> <= <low> ).
-      WHEN base_gt.
-        result = xsdbool( <input> >  <low> ).
-      WHEN base_ge.
-        result = xsdbool( <input> >= <low> ).
-      WHEN OTHERS.
-        result = abap_false.
-    ENDCASE.
-
-  ENDMETHOD.
-
-
-  METHOD rule_accepts_bounds.
-
-    DATA(typed_input) = check_convertible( value        = input
-                                           data_element = variant-data_element
-                                           element      = element ).
-
-    DATA(typed_low)   = check_convertible( value        = variant-value
-                                           data_element = variant-data_element
-                                           element      = element ).
-
-    DATA(typed_high)  = check_convertible( value        = variant-high_value
-                                           data_element = variant-data_element
-                                           element      = element ).
-
-    ASSIGN typed_input->* TO FIELD-SYMBOL(<input>).
-    ASSIGN typed_low->*   TO FIELD-SYMBOL(<low>).
-    ASSIGN typed_high->*  TO FIELD-SYMBOL(<high>).
-
-    DATA(inside) = xsdbool( <input> >= <low> AND <input> <= <high> ).
-
-    result = COND #( WHEN variant-opt = base_nb
-                     THEN xsdbool( inside = abap_false )
-                     ELSE inside ).
-
-  ENDMETHOD.
-
-
   METHOD zif_da_variants~delete_variant.
 
     DATA(parameter) = CONV ty_parameterid( to_upper( parameter_id ) ).
-    DATA(program)   = CONV ty_progname( to_upper(
-                          COND #( WHEN program_name IS NOT INITIAL
-                                  THEN program_name
-                                  ELSE default_program ) ) ).
+    DATA(program)   = program_scope( program_name ).
 
     " without a parameter this would clear whatever happens to have a blank key
     IF parameter IS INITIAL.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-017 }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>parameter_missing ).
     ENDIF.
 
-    TRY.
-        IF counter IS INITIAL.
-          DELETE FROM (me->configuration_table)
-            WHERE progname    = @program
-              AND parameterid = @parameter.
-        ELSE.
-          DELETE FROM (me->configuration_table)
-            WHERE progname    = @program
-              AND parameterid = @parameter
-              AND counter     = @counter.
-        ENDIF.
-
-      CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(sql_error).
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-010 } { sql_error->get_text( ) }|
-                                             previous = sql_error ).
-    ENDTRY.
-
-    " removing what is not there is not an error, a cleanup script may run twice
-    result = sy-dbcnt.
+    result = repository->delete_rows( program_name = program
+                                      parameter_id = parameter
+                                      counter      = counter ).
 
     IF commit = abap_true.
       COMMIT WORK.
@@ -767,24 +462,12 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   METHOD read_variants.
 
-    TRY.
-        SELECT FROM (me->configuration_table)
-          FIELDS progname, parameterid, counter, is_active, sign, opt,
-                 value, high_value, data_element, mapping_value, mapping_data_el,
-                 description
-          WHERE progname    = @program_name
-            AND parameterid = @parameter_id
-            AND is_active   = @abap_true
-          ORDER BY counter
-          INTO CORRESPONDING FIELDS OF TABLE @result.
-
-      CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(sql_error).
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-004 } { sql_error->get_text( ) }|
-                                             previous = sql_error ).
-    ENDTRY.
+    result = repository->read_active_variants( program_name = program_name
+                                               parameter_id = parameter_id ).
 
     IF result IS INITIAL.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-003 } { parameter_id }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>no_active_variant
+                                           msgv1  = parameter_id ).
     ENDIF.
 
     check_type_consistency( result ).
@@ -799,8 +482,9 @@ CLASS zcl_da_variants IMPLEMENTATION.
                                              ( element ) ).
 
     IF lines( elements ) > 1.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-012 } { variants[ 1 ]-parameterid }: |
-                                                  && concat_lines_of( table = elements sep = `, ` ) ).
+      RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>inconsistent_elements
+                                           msgv1  = variants[ 1 ]-parameterid
+                                           msgv2  = concat_lines_of( table = elements sep = `, ` ) ).
     ENDIF.
 
     " only rows that map something take part, a row without a mapping value has no type
@@ -812,8 +496,9 @@ CLASS zcl_da_variants IMPLEMENTATION.
                                  ( mapping_element ) ).
 
     IF lines( mapping_elements ) > 1.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-014 } { variants[ 1 ]-parameterid }: |
-                                                  && concat_lines_of( table = mapping_elements sep = `, ` ) ).
+      RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>inconsistent_mapping_elements
+                                           msgv1  = variants[ 1 ]-parameterid
+                                           msgv2  = concat_lines_of( table = mapping_elements sep = `, ` ) ).
     ENDIF.
 
   ENDMETHOD.
@@ -824,32 +509,6 @@ CLASS zcl_da_variants IMPLEMENTATION.
     result = VALUE #( FOR variant IN variants
                       WHERE ( mapping_value IS NOT INITIAL )
                       ( variant ) ).
-
-  ENDMETHOD.
-
-
-  METHOD resolve_element_type.
-
-    IF data_element IS INITIAL.
-      result = CAST #( cl_abap_elemdescr=>describe_by_data( sample_value ) ).
-      RETURN.
-    ENDIF.
-
-    cl_abap_typedescr=>describe_by_name( EXPORTING  p_name         = data_element
-                                         RECEIVING  p_descr_ref    = DATA(type)
-                                         EXCEPTIONS type_not_found = 1
-                                                    OTHERS         = 2 ).
-    IF sy-subrc <> 0.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-005 } { data_element }| ).
-    ENDIF.
-
-    TRY.
-        result = CAST #( type ).
-
-      CATCH cx_sy_move_cast_error INTO DATA(cast_error).
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-005 } { data_element }|
-                                             previous = cast_error ).
-    ENDTRY.
 
   ENDMETHOD.
 
@@ -885,10 +544,8 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
       CATCH cx_sy_conversion_error INTO DATA(conversion_error).
         CLEAR range.
-        RAISE EXCEPTION NEW
-          zcx_da_variants(
-            text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
-            previous = conversion_error ).
+        RAISE EXCEPTION conversion_failed( conversion_error = conversion_error
+                                           counter          = variant-counter ).
     ENDTRY.
 
   ENDMETHOD.
@@ -904,10 +561,8 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
       CATCH cx_sy_conversion_error INTO DATA(conversion_error).
         CLEAR values.
-        RAISE EXCEPTION NEW
-          zcx_da_variants(
-            text     = |{ TEXT-001 } { conversion_error->get_text( ) } [{ variant-counter }]|
-            previous = conversion_error ).
+        RAISE EXCEPTION conversion_failed( conversion_error = conversion_error
+                                           counter          = variant-counter ).
     ENDTRY.
 
   ENDMETHOD.
@@ -923,10 +578,10 @@ CLASS zcl_da_variants IMPLEMENTATION.
     DATA(mapping_rows)  = mapping_variants( variants ).
     DATA(first_mapping) = VALUE ty_variant( mapping_rows[ 1 ] OPTIONAL ).
 
-    DATA(value_type)   = resolve_element_type( data_element = first_variant-data_element
-                                               sample_value = first_variant-value ).
-    DATA(mapping_type) = resolve_element_type( data_element = first_mapping-mapping_data_el
-                                               sample_value = first_mapping-mapping_value ).
+    DATA(value_type)   = value_check->resolve_element_type( data_element = first_variant-data_element
+                                                            sample_value = first_variant-value ).
+    DATA(mapping_type) = value_check->resolve_element_type( data_element = first_mapping-mapping_data_el
+                                                            sample_value = first_mapping-mapping_value ).
 
     TRY.
         DATA(table_type) = cl_abap_tabledescr=>create(
@@ -942,7 +597,8 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
       CATCH cx_sy_struct_creation cx_sy_table_creation cx_sy_create_data_error
             INTO DATA(rtts_error).
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-002 } { rtts_error->get_text( ) }|
+        RAISE EXCEPTION NEW zcx_da_variants( textid   = zcx_da_variants=>rtts_failed
+                                             msgv1    = rtts_error->get_text( )
                                              previous = rtts_error ).
     ENDTRY.
 
@@ -966,35 +622,8 @@ CLASS zcl_da_variants IMPLEMENTATION.
         ENDLOOP.
 
       CATCH cx_sy_conversion_error INTO DATA(conversion_error).
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-001 } { conversion_error->get_text( ) }|
-                                             previous = conversion_error ).
-    ENDTRY.
-
-  ENDMETHOD.
-
-  METHOD get_last_counter.
-
-    TRY.
-        SELECT FROM (me->configuration_table)
-          FIELDS MAX( counter ) AS counter
-          WHERE progname    = @program_name
-            AND parameterid = @parameter_id
-          INTO @result.
-
-        IF me->configuration_table = default_table.
-          " the Fiori application parks pending counters in the draft table
-          SELECT FROM ztda_variants_d
-            FIELDS MAX( counter ) AS counter
-            WHERE progname    = @program_name
-              AND parameterid = @parameter_id
-            INTO @DATA(draft_counter).
-
-          result = nmax( val1 = result val2 = draft_counter ).
-        ENDIF.
-
-      CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(sql_error).
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-004 } { sql_error->get_text( ) }|
-                                             previous = sql_error ).
+        RAISE EXCEPTION conversion_failed( conversion_error = conversion_error
+                                           counter          = variant-counter ).
     ENDTRY.
 
   ENDMETHOD.
@@ -1002,11 +631,16 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   METHOD next_counter.
 
-    DATA(highest) = CONV i( get_last_counter( parameter_id = parameter_id
-                                              program_name = program_name ) ).
+    DATA(last_counters) = repository->read_last_counters(
+                              VALUE #( ( progname    = program_name
+                                         parameterid = parameter_id ) ) ).
+
+    DATA(highest) = CONV i( VALUE #( last_counters[ progname    = program_name
+                                                    parameterid = parameter_id ]-counter OPTIONAL ) ).
 
     IF highest >= max_counter.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-015 } { parameter_id }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>counter_exhausted
+                                           msgv1  = parameter_id ).
     ENDIF.
 
     result = highest + 1.
@@ -1023,14 +657,15 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
       stamp_admin_fields( CHANGING row = row ).
 
-      IF insert_row( row ) = abap_true.
+      IF repository->insert_row( row ) = abap_true.
         RETURN.
       ENDIF.
 
     ENDDO.
 
     " every allocated counter was taken by a competing LUW before the insert
-    RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-016 } { row-parameterid }| ).
+    RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>counter_not_secured
+                                         msgv1  = row-parameterid ).
 
   ENDMETHOD.
 
@@ -1058,172 +693,14 @@ CLASS zcl_da_variants IMPLEMENTATION.
   METHOD validate_values.
 
     " both bounds live in the same column and therefore in the same type
-    check_value( value        = field_value
-                 data_element = data_element ).
+    value_check->check_value( value        = field_value
+                              data_element = data_element ).
 
-    check_value( value        = high_value
-                 data_element = data_element ).
+    value_check->check_value( value        = high_value
+                              data_element = data_element ).
 
-    check_value( value        = mapping_field_value
-                 data_element = mapping_data_element ).
-
-  ENDMETHOD.
-
-
-  METHOD check_value.
-
-    " the native 255 character column holds anything, and nothing is lost from nothing
-    IF value IS INITIAL OR data_element IS INITIAL.
-      RETURN.
-    ENDIF.
-
-    DATA(element) = resolve_element_type( data_element = data_element
-                                          sample_value = value ).
-
-    CASE element->type_kind.
-
-      WHEN cl_abap_typedescr=>typekind_date.
-        check_date( value        = value
-                    data_element = data_element ).
-
-      WHEN cl_abap_typedescr=>typekind_time.
-        check_time( value        = value
-                    data_element = data_element ).
-
-      WHEN cl_abap_typedescr=>typekind_char
-        OR cl_abap_typedescr=>typekind_num
-        OR cl_abap_typedescr=>typekind_string.
-        " character like targets truncate and filter without raising anything
-        check_round_trip( value        = value
-                          data_element = data_element
-                          element      = element ).
-
-      WHEN OTHERS.
-        " every other type reports on its own that the value does not fit
-        check_convertible( value        = value
-                           data_element = data_element
-                           element      = element ).
-
-    ENDCASE.
-
-  ENDMETHOD.
-
-
-  METHOD check_convertible.
-
-    TRY.
-        CREATE DATA result TYPE HANDLE element.
-        ASSIGN result->* TO FIELD-SYMBOL(<target>).
-
-        <target> = value.
-
-      CATCH cx_sy_conversion_error cx_sy_create_data_error INTO DATA(conversion_error).
-        " the cause travels in the exception chain, the text has to stay short
-        " enough for the message variable that carries it into the Fiori application
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-020 } { condense( CONV string( data_element ) ) }|
-                                             previous = conversion_error ).
-    ENDTRY.
-
-  ENDMETHOD.
-
-
-  METHOD check_round_trip.
-
-    DATA stored TYPE ty_value.
-
-    DATA(target) = check_convertible( value        = value
-                                      data_element = data_element
-                                      element      = element ).
-
-    ASSIGN target->* TO FIELD-SYMBOL(<target>).
-
-    " read the value back the way get_variant( ) would see it
-    stored = <target>.
-
-    IF normalized( value = stored type_kind = element->type_kind )
-       <> normalized( value = value type_kind = element->type_kind ).
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-021 } { condense( CONV string( data_element ) ) }| ).
-    ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD normalized.
-
-    result = condense( CONV string( value ) ).
-
-    " NUMC pads with leading zeros, which adds nothing and loses nothing
-    IF type_kind = cl_abap_typedescr=>typekind_num.
-      SHIFT result LEFT DELETING LEADING '0'.
-    ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD check_date.
-
-    " a date field is character like, so an impossible day is copied straight in
-    DATA(text) = condense( CONV string( value ) ).
-    DATA(element_name) = condense( CONV string( data_element ) ).
-
-    IF strlen( text ) <> date_length OR text CN digits.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { element_name }| ).
-    ENDIF.
-
-    DATA(year)  = CONV i( substring( val = text off = 0 len = 4 ) ).
-    DATA(month) = CONV i( substring( val = text off = 4 len = 2 ) ).
-    DATA(day)   = CONV i( substring( val = text off = 6 len = 2 ) ).
-
-    IF year < 1 OR year > max_year OR month < 1 OR month > max_month.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { element_name }| ).
-    ENDIF.
-
-    DATA(last_day) = last_day_of_month( year = year month = month ).
-
-    IF day < 1 OR day > last_day.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-022 } { element_name }| ).
-    ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD check_time.
-
-    DATA(text) = condense( CONV string( value ) ).
-    DATA(element_name) = condense( CONV string( data_element ) ).
-
-    IF strlen( text ) <> time_length OR text CN digits.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-023 } { element_name }| ).
-    ENDIF.
-
-    DATA(hours)   = CONV i( substring( val = text off = 0 len = 2 ) ).
-    DATA(minutes) = CONV i( substring( val = text off = 2 len = 2 ) ).
-    DATA(seconds) = CONV i( substring( val = text off = 4 len = 2 ) ).
-
-    IF hours > max_hour OR minutes > max_minute OR seconds > max_second.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-023 } { element_name }| ).
-    ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD last_day_of_month.
-
-    DATA(lengths) = VALUE ty_month_lengths( ( 31 ) ( 28 ) ( 31 ) ( 30 ) ( 31 ) ( 30 )
-                                            ( 31 ) ( 31 ) ( 30 ) ( 31 ) ( 30 ) ( 31 ) ).
-
-    result = VALUE #( lengths[ month ] OPTIONAL ).
-
-    IF month = february AND is_leap_year( year ) = abap_true.
-      result = leap_day.
-    ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD is_leap_year.
-
-    result = xsdbool( ( year MOD 4 = 0 AND year MOD 100 <> 0 ) OR year MOD 400 = 0 ).
+    value_check->check_value( value        = mapping_field_value
+                              data_element = mapping_data_element ).
 
   ENDMETHOD.
 
@@ -1231,11 +708,12 @@ CLASS zcl_da_variants IMPLEMENTATION.
   METHOD validate_mandatory.
 
     IF parameter_id IS INITIAL.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-017 }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>parameter_missing ).
     ENDIF.
 
     IF field_value IS INITIAL.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-018 } { parameter_id }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>value_missing
+                                           msgv1  = parameter_id ).
     ENDIF.
 
   ENDMETHOD.
@@ -1243,13 +721,15 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   METHOD validate_data_elements.
 
-    IF data_element IS NOT INITIAL AND data_element_exists( data_element ) = abap_false.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-005 } { data_element }| ).
+    IF data_element IS NOT INITIAL AND value_check->data_element_exists( data_element ) = abap_false.
+      RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>invalid_data_element
+                                           msgv1  = data_element ).
     ENDIF.
 
     IF mapping_data_element IS NOT INITIAL
-       AND data_element_exists( mapping_data_element ) = abap_false.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-006 } { mapping_data_element }| ).
+       AND value_check->data_element_exists( mapping_data_element ) = abap_false.
+      RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>invalid_mapping_element
+                                           msgv1  = mapping_data_element ).
     ENDIF.
 
   ENDMETHOD.
@@ -1260,33 +740,15 @@ CLASS zcl_da_variants IMPLEMENTATION.
     DATA(takes_high_value) = xsdbool( option = opt_bt OR option = opt_nb ).
 
     IF takes_high_value = abap_true AND high_value IS INITIAL.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-013 } { CONV ty_base_opt( option ) }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>high_value_missing
+                                           msgv1  = CONV ty_base_opt( option ) ).
     ENDIF.
 
     " the Fiori application rejects this too, an upper bound has no meaning here
     IF takes_high_value = abap_false AND high_value IS NOT INITIAL.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-019 } { CONV ty_base_opt( option ) }| ).
+      RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>high_value_not_allowed
+                                           msgv1  = CONV ty_base_opt( option ) ).
     ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD read_creation_info.
-
-    TRY.
-        SELECT SINGLE
-          FROM (me->configuration_table)
-          FIELDS created_by, created_at
-          WHERE progname    = @row-progname
-            AND parameterid = @row-parameterid
-            AND counter     = @row-counter
-          INTO @result.
-
-      CATCH cx_sy_dynamic_osql_semantics
-            cx_sy_dynamic_osql_syntax INTO DATA(sql_error).
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-004 } { sql_error->get_text( ) }|
-                                             previous = sql_error ).
-    ENDTRY.
 
   ENDMETHOD.
 
@@ -1310,6 +772,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
     IF row-description IS INITIAL.
       row-description = default_description( user_name ).
     ENDIF.
+
   ENDMETHOD.
 
 
@@ -1318,56 +781,27 @@ CLASS zcl_da_variants IMPLEMENTATION.
     DATA(current_date) = system_context->current_date( ).
     DATA(current_time) = system_context->current_time( ).
 
-    result = |{ TEXT-007 } { current_date DATE = ISO } { current_time TIME = ISO } |
-          && |{ TEXT-008 } { user_name }|.
+    " the text is a translatable message, filled with the ISO forms of date and time
+    MESSAGE i007(zda) WITH |{ current_date DATE = ISO }| |{ current_time TIME = ISO }| user_name
+      INTO DATA(description).
+
+    result = description.
 
   ENDMETHOD.
 
 
-  METHOD persist_row.
+  METHOD conversion_failed.
 
-    TRY.
-        MODIFY (me->configuration_table) FROM @row.
+    DATA(cause) = conversion_error->get_text( ).
 
-      CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(write_error).
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-010 } { write_error->get_text( ) }|
-                                             previous = write_error ).
-    ENDTRY.
-
-    IF sy-subrc <> 0.
-      RAISE EXCEPTION NEW zcx_da_variants( text = |{ TEXT-009 } { row-parameterid }| ).
-    ENDIF.
+    result = NEW zcx_da_variants( textid   = zcx_da_variants=>conversion_failed
+                                  msgv1    = COND #( WHEN counter IS INITIAL
+                                                     THEN cause
+                                                     ELSE |{ cause } [{ counter }]| )
+                                  previous = conversion_error ).
 
   ENDMETHOD.
 
 
-  METHOD insert_row.
-
-    TRY.
-        INSERT (me->configuration_table) FROM @row.
-
-      CATCH cx_sy_dynamic_osql_semantics cx_sy_dynamic_osql_syntax INTO DATA(write_error).
-        RAISE EXCEPTION NEW zcx_da_variants( text     = |{ TEXT-010 } { write_error->get_text( ) }|
-                                             previous = write_error ).
-    ENDTRY.
-
-    " a key that is already taken is not an error, the caller allocates the next one
-    result = xsdbool( sy-subrc = 0 ).
-
-  ENDMETHOD.
-
-
-  METHOD data_element_exists.
-
-    cl_abap_typedescr=>describe_by_name( EXPORTING  p_name         = data_element
-                                         RECEIVING  p_descr_ref    = DATA(type)
-                                         EXCEPTIONS type_not_found = 1
-                                                    OTHERS         = 2 ).
-    IF sy-subrc <> 0.
-      RETURN.
-    ENDIF.
-
-    result = xsdbool( type->kind = cl_abap_typedescr=>kind_elem ).
-
-  ENDMETHOD.
 ENDCLASS.
+
