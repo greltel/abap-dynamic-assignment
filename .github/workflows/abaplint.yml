@@ -1,0 +1,29 @@
+name: abaplint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  abaplint:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install abaplint
+        run: npm install -g @abaplint/cli
+
+      - name: Run abaplint
+        run: abaplint abaplint.json --format standard
