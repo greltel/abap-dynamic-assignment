@@ -1,0 +1,13 @@
+# Repository files: normalise to LF so that diffs are line-ending free.
+*.md         text eol=lf
+*.json       text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+.gitattributes text eol=lf
+.editorconfig  text eol=lf
+LICENSE      text eol=lf
+
+# abapGit owns everything under src/. It writes ABAP sources with LF and
+# CDS/BDEF sources exactly as ADT stores them, so git must not touch them:
+# a normalised file shows up as a diff on the next abapGit status.
+src/**       -text
