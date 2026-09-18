@@ -41,14 +41,14 @@ CLASS ltc_numbering DEFINITION FINAL
     TYPES ty_drafts TYPE STANDARD TABLE OF ztda_variants_d WITH EMPTY KEY.
 
     METHODS insert_draft
-      IMPORTING parameter_id TYPE ztda_variants-ParameterID
+      IMPORTING parameter_id TYPE ztda_variants-parameterid
                 counter      TYPE ztda_variants-Counter.
 
     CLASS-DATA sql_environment TYPE REF TO if_osql_test_environment.
 
     CONSTANTS test_program    TYPE ztda_variants-progname    VALUE 'TEST_PROG' ##NO_TEXT.
-    CONSTANTS test_parameter  TYPE ztda_variants-ParameterID VALUE 'UNIT_TEST' ##NO_TEXT.
-    CONSTANTS other_parameter TYPE ztda_variants-ParameterID VALUE 'OTHER'     ##NO_TEXT.
+    CONSTANTS test_parameter  TYPE ztda_variants-parameterid VALUE 'UNIT_TEST' ##NO_TEXT.
+    CONSTANTS other_parameter TYPE ztda_variants-parameterid VALUE 'OTHER'     ##NO_TEXT.
 
     CLASS-METHODS class_setup.
     CLASS-METHODS class_teardown.
@@ -70,7 +70,7 @@ CLASS ltc_numbering DEFINITION FINAL
     METHODS given_counter_full_then_fail FOR TESTING RAISING cx_static_check.
 
     METHODS insert_variant
-      IMPORTING parameter_id TYPE ztda_variants-ParameterID
+      IMPORTING parameter_id TYPE ztda_variants-parameterid
                 counter      TYPE ztda_variants-Counter.
 
 ENDCLASS.
@@ -102,8 +102,8 @@ CLASS ltc_numbering IMPLEMENTATION.
            ENTITY variants
            CREATE FIELDS ( progname parameterid value )
            WITH VALUE #( ( %cid        = 'C1'
-                           Progname    = test_program
-                           ParameterID = test_parameter
+                           progname    = test_program
+                           parameterid = test_parameter
                            Value       = 'A' ) )
            MAPPED DATA(mapped)
            FAILED DATA(failed).
@@ -127,8 +127,8 @@ CLASS ltc_numbering IMPLEMENTATION.
            ENTITY variants
            CREATE FIELDS ( progname parameterid value )
            WITH VALUE #( ( %cid        = 'C1'
-                           Progname    = test_program
-                           ParameterID = test_parameter
+                           progname    = test_program
+                           parameterid = test_parameter
                            Value       = 'B' ) )
            MAPPED DATA(mapped).
 
@@ -143,8 +143,8 @@ CLASS ltc_numbering IMPLEMENTATION.
     MODIFY ENTITIES OF zr_da_variants
            ENTITY variants
            CREATE FIELDS ( progname parameterid value )
-           WITH VALUE #( Progname    = test_program
-                         ParameterID = test_parameter
+           WITH VALUE #( progname    = test_program
+                         parameterid = test_parameter
                          ( %cid  = 'C1'
                            Value = 'A' )
                          ( %cid  = 'C2'
@@ -170,12 +170,12 @@ CLASS ltc_numbering IMPLEMENTATION.
     MODIFY ENTITIES OF zr_da_variants
            ENTITY variants
            CREATE FIELDS ( progname parameterid value )
-           WITH VALUE #( Progname = test_program
+           WITH VALUE #( progname = test_program
                          ( %cid        = 'C1'
-                           ParameterID = test_parameter
+                           parameterid = test_parameter
                            Value       = 'A' )
                          ( %cid        = 'C2'
-                           ParameterID = other_parameter
+                           parameterid = other_parameter
                            Value       = 'B' ) )
            MAPPED DATA(mapped).
 
@@ -195,8 +195,8 @@ CLASS ltc_numbering IMPLEMENTATION.
            ENTITY variants
            CREATE FIELDS ( progname parameterid value )
            WITH VALUE #( ( %cid        = 'C1'
-                           Progname    = test_program
-                           ParameterID = test_parameter
+                           progname    = test_program
+                           parameterid = test_parameter
                            Value       = 'B' ) )
            MAPPED DATA(mapped).
 
@@ -216,8 +216,8 @@ CLASS ltc_numbering IMPLEMENTATION.
            ENTITY variants
            CREATE FIELDS ( progname parameterid value )
            WITH VALUE #( ( %cid        = 'C1'
-                           Progname    = test_program
-                           ParameterID = test_parameter
+                           progname    = test_program
+                           parameterid = test_parameter
                            Value       = 'A' ) )
            MAPPED DATA(mapped)
            FAILED DATA(failed).
@@ -231,8 +231,8 @@ CLASS ltc_numbering IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD insert_draft.
-    sql_environment->insert_test_data( VALUE ty_drafts( ( Progname    = test_program
-                                                          ParameterID = parameter_id
+    sql_environment->insert_test_data( VALUE ty_drafts( ( progname    = test_program
+                                                          parameterid = parameter_id
                                                           Counter     = counter ) ) ).
   ENDMETHOD.
 
@@ -256,7 +256,7 @@ CLASS ltc_defaults DEFINITION FINAL
     CLASS-DATA sql_environment TYPE REF TO if_osql_test_environment.
 
     CONSTANTS test_program   TYPE ztda_variants-progname    VALUE 'TEST_PROG' ##NO_TEXT.
-    CONSTANTS test_parameter TYPE ztda_variants-ParameterID VALUE 'UNIT_TEST' ##NO_TEXT.
+    CONSTANTS test_parameter TYPE ztda_variants-parameterid VALUE 'UNIT_TEST' ##NO_TEXT.
 
     CLASS-METHODS class_setup.
     CLASS-METHODS class_teardown.
@@ -337,8 +337,8 @@ CLASS ltc_defaults IMPLEMENTATION.
            ENTITY variants
            CREATE FIELDS ( progname parameterid value sign opt )
            WITH VALUE #( ( %cid        = 'C1'
-                           Progname    = test_program
-                           ParameterID = test_parameter
+                           progname    = test_program
+                           parameterid = test_parameter
                            Value       = 'A'
                            Sign        = sign
                            Opt         = option ) )
@@ -565,7 +565,7 @@ CLASS ltc_validations IMPLEMENTATION.
 
     " every call uses its own parameter so that the tests never share a key
     next_id += 1.
-    DATA(parameter) = CONV ztda_variants-ParameterID( |UNIT_TEST_{ next_id }| ).
+    DATA(parameter) = CONV ztda_variants-parameterid( |UNIT_TEST_{ next_id }| ).
 
     MODIFY ENTITIES OF zr_da_variants
            ENTITY variants
@@ -610,7 +610,7 @@ CLASS ltc_authorizations DEFINITION FINAL
     DATA authorization TYPE REF TO ltd_authorization.
 
     CONSTANTS test_program   TYPE ztda_variants-progname    VALUE 'TEST_PROG' ##NO_TEXT.
-    CONSTANTS test_parameter TYPE ztda_variants-ParameterID VALUE 'UNIT_TEST' ##NO_TEXT.
+    CONSTANTS test_parameter TYPE ztda_variants-parameterid VALUE 'UNIT_TEST' ##NO_TEXT.
 
     CLASS-METHODS class_setup.
     CLASS-METHODS class_teardown.
@@ -692,8 +692,8 @@ CLASS ltc_authorizations IMPLEMENTATION.
            ENTITY variants
            CREATE FIELDS ( progname parameterid value )
            WITH VALUE #( ( %cid        = 'C1'
-                           Progname    = test_program
-                           ParameterID = test_parameter
+                           progname    = test_program
+                           parameterid = test_parameter
                            Value       = 'A' ) )
            FAILED DATA(failed).
 
@@ -709,8 +709,8 @@ CLASS ltc_authorizations IMPLEMENTATION.
            CREATE FIELDS ( progname parameterid value )
            WITH VALUE #( ( %cid        = 'C1'
                            %is_draft   = if_abap_behv=>mk-on
-                           Progname    = test_program
-                           ParameterID = test_parameter
+                           progname    = test_program
+                           parameterid = test_parameter
                            Value       = 'X' ) )
            MAPPED DATA(mapped).
 

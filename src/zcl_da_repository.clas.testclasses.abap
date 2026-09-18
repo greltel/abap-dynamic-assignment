@@ -10,7 +10,7 @@ CLASS ltc_repository DEFINITION FINAL
     DATA cut TYPE REF TO zif_da_repository.
 
     CONSTANTS test_program   TYPE ztda_variants-progname    VALUE 'TEST_PROG' ##NO_TEXT.
-    CONSTANTS test_parameter TYPE ztda_variants-parameterID VALUE 'UNIT_TEST' ##NO_TEXT.
+    CONSTANTS test_parameter TYPE ztda_variants-parameterid VALUE 'UNIT_TEST' ##NO_TEXT.
 
     CLASS-METHODS class_setup.
     CLASS-METHODS class_teardown.
@@ -31,7 +31,7 @@ CLASS ltc_repository DEFINITION FINAL
     METHODS insert_variant
       IMPORTING counter    TYPE ztda_variants-counter
                 is_active  TYPE abap_boolean              DEFAULT abap_true
-                !parameter TYPE ztda_variants-ParameterID DEFAULT test_parameter.
+                !parameter TYPE ztda_variants-parameterid DEFAULT test_parameter.
 
     METHODS row
       IMPORTING counter       TYPE ztda_variants-counter
@@ -81,12 +81,12 @@ CLASS ltc_repository IMPLEMENTATION.
     insert_variant( counter = '00001' ).
 
     DATA drafts TYPE STANDARD TABLE OF ztda_variants_d WITH EMPTY KEY.
-    drafts = VALUE #( ( progname = test_program ParameterID = test_parameter Counter = '00005' ) ).
+    drafts = VALUE #( ( progname = test_program parameterid = test_parameter Counter = '00005' ) ).
     sql_environment->insert_test_data( drafts ).
 
     " when
     DATA(counters) = cut->read_last_counters( VALUE #( ( progname    = test_program
-                                                         ParameterID = test_parameter ) ) ).
+                                                         parameterid = test_parameter ) ) ).
 
     " then
     cl_abap_unit_assert=>assert_equals( exp = '00005'
@@ -104,9 +104,9 @@ CLASS ltc_repository IMPLEMENTATION.
 
     " when - the same key twice, as a request with two entities would send it
     DATA(counters) = cut->read_last_counters( VALUE #( progname = test_program
-                                                       ( ParameterID = test_parameter )
-                                                       ( ParameterID = test_parameter )
-                                                       ( ParameterID = 'OTHER' ) ) ).
+                                                       ( parameterid = test_parameter )
+                                                       ( parameterid = test_parameter )
+                                                       ( parameterid = 'OTHER' ) ) ).
 
     " then
     cl_abap_unit_assert=>assert_equals( exp = 2
@@ -115,7 +115,7 @@ CLASS ltc_repository IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals( exp = '00007'
                                         act = counters[ progname    = test_program
-                                                        ParameterID = 'OTHER' ]-counter
+                                                        parameterid = 'OTHER' ]-counter
                                         msg = `Each key must carry its own highest counter` ).
   ENDMETHOD.
 

@@ -128,8 +128,7 @@ CLASS zcl_da_repository IMPLEMENTATION.
 
   ENDMETHOD.
 
-
-    METHOD zif_da_repository~read_last_counters.
+  METHOD zif_da_repository~read_last_counters.
 
     DATA active_counters TYPE zif_da_repository=>ty_counter_keys.
     DATA draft_counters  TYPE zif_da_repository=>ty_counter_keys.
