@@ -1,14 +1,17 @@
 # ABAP Dynamic Assignment
-# ✅ Status: Release (2.1.0)
-> **Open Source Contribution:** This project is community-driven and **Open Source**! 🚀
-> If you spot a bug or have an idea for a cool enhancement, your contributions are more than welcome. Feel free to open an **Issue** or submit a **Pull Request**.
 
+# ✅ Status: Release (3.0.0)
+
+> **Open Source Contribution:** This project is community-driven and **Open Source**! 🚀
+> If you spot a bug or have an idea for an enhancement, open an **Issue** or submit a **Pull Request**.
+
+[![abaplint](https://github.com/greltel/abap-dynamic-assignment/actions/workflows/abaplint.yml/badge.svg)](https://github.com/greltel/abap-dynamic-assignment/actions/workflows/abaplint.yml)
 [![ABAP Cloud](https://img.shields.io/badge/ABAP-Cloud%20Ready-green)](https://abaplint.app/stats/greltel/abap-dynamic-assignment/object_classifications)
-[![ABAP Version](https://img.shields.io/badge/ABAP-7.58%2B-blue )](https://abaplint.app/stats/greltel/abap-dynamic-assignment/statement_compatibility)
+[![ABAP Version](https://img.shields.io/badge/ABAP-7.58%2B-blue)](https://abaplint.app/stats/greltel/abap-dynamic-assignment/statement_compatibility)
 [![Code Statistics](https://img.shields.io/badge/CodeStatistics-abaplint-blue)](https://abaplint.app/stats/greltel/abap-dynamic-assignment)
 [![License](https://img.shields.io/badge/License-MIT-green)](https://github.com/greltel/abap-dynamic-assignment/blob/main/LICENSE)
 
-A lightweight, dynamic runtime parameter framework.
+A lightweight, dynamic runtime parameter framework for ABAP Cloud.
 It decouples configuration values from code logic, allowing developers, functional consultants or key users
 to maintain variables, ranges and mappings through a Fiori Elements application or a programmatic API,
 bypassing hardcoded values and the rigid standard TVARVC table.
@@ -19,12 +22,15 @@ bypassing hardcoded values and the rigid standard TVARVC table.
 3. [Key Benefits](#key-benefits)
 4. [Prerequisites](#prerequisites)
 5. [Installation](#installation)
-6. [Authorization](#authorization)
-7. [Usage](#usage)
-8. [The configuration table](#the-configuration-table)
-9. [Running the tests](#running-the-tests)
-10. [Known limitations](#known-limitations)
-11. [Contributing](#contributing)
+6. [Upgrading from 2.x](#upgrading-from-2x)
+7. [Authorization](#authorization)
+8. [Usage](#usage)
+9. [Architecture](#architecture)
+10. [The configuration table](#the-configuration-table)
+11. [Messages](#messages)
+12. [Running the tests](#running-the-tests)
+13. [Known limitations](#known-limitations)
+14. [Contributing](#contributing)
 
 ## License
 This project is licensed under the [MIT License](https://github.com/greltel/abap-dynamic-assignment/blob/main/LICENSE).
@@ -44,40 +50,65 @@ The repository was created by [George Drakos](https://www.linkedin.com/in/george
   answers which bucket it falls into, comparing in the configured DDIC type rather than on strings.
 * **Validated on write:** A value its data element could not hold unchanged is refused when it is
   stored, instead of surfacing months later in whichever program reads it first. The Fiori application
-  and the programmatic API run the same check, through the same code.
-* **ABAP Cloud:** Written for ABAP for Cloud Development.
-* **Testable:** The public surface sits behind `ZIF_DA_VARIANTS`, so consumers can mock the framework
-  with `cl_abap_testdouble` instead of setting up a database.
-* **Unit Tested:** 123 ABAP Unit tests across eleven test classes. The OSQL Test Double Framework keeps
-  the database out of the picture, `cl_abap_testdouble` does the same for the RAP query interfaces.
-* **Fiori Elements App** built with RAP, including validations, defaults, draft handling and
+  and the programmatic API run the same check, through the same class.
+* **Zero-touch installation:** Pull, activate, publish. No source code to edit, no constant to adjust.
+* **ABAP Cloud:** Written for ABAP for Cloud Development, released APIs only.
+* **Testable by design:** Every collaborator sits behind an interface and is injected through the
+  constructor, so consumers mock the framework and the framework mocks the system. No test depends on
+  the user, the clock, the PFCG roles or the data of the system it runs on.
+* **Unit Tested:** 146 ABAP Unit tests across fourteen test classes, on the OSQL Test Double
+  Framework and `cl_abap_testdouble`.
+* **Fiori Elements App** built with RAP: validations, defaults, draft handling, optimistic locking and
   authorization checks.
+* **Clean:** abaplint with an extended Clean ABAP rule set runs on every push and pull request.
+  Zero findings is the merge bar.
 
 ## Prerequisites
 
-* SAP S/4HANA 2023 FPS03 or higher (ABAP 7.58)
+* SAP S/4HANA 2023 FPS03 or higher (ABAP 7.58), or SAP BTP ABAP Environment
 * Authorization object `ZDA_VAR` — see [Authorization](#authorization)
 
 ## Installation
 
-1. Pull the repository with [abapGit](http://abapgit.org) into a Z package.
-2. Create the authorization object **before** activating (the behaviour pool references it).
-3. Adjust `ZCL_DA_VARIANTS=>default_packages` to the name of your own package.
-   The constructor validates the configuration table against this list and rejects anything outside it.
+1. Pull the repository with [abapGit](http://abapgit.org) into a package with the language version
+   *ABAP for Cloud Development*.
+2. Create the authorization field and object **before** activating — see [Authorization](#authorization).
+   The behavior pool and the DCL reference `ZDA_VAR`.
+3. Activate everything.
 4. Publish the service binding `ZUI_DA_VARIANTS_O4`.
 5. Create the IAM App, Business Catalog and Launchpad tile so that the application reaches your users.
+
+That is all. The framework instantiates without arguments on its own table `ZTDA_VARIANTS`.
+
+## Upgrading from 2.x
+
+3.0.0 renames the RAP objects and the tables. There is no in-place upgrade; treat it as a fresh
+installation next to the old one:
+
+| 2.x | 3.0.0 |
+|---|---|
+| `ZDA_VARIANTS`, `ZDA_VARIANTS_D` | `ZTDA_VARIANTS`, `ZTDA_VARIANTS_D` |
+| `ZI_DA_VARIANTS` (view, behavior definition, access control) | `ZR_DA_VARIANTS` |
+| `ZBP_I_DA_VARIANTS` | `ZBP_R_DA_VARIANTS` |
+| `ZCL_DA_VARIANTS=>check_value( )`, `=>data_element_exists( )` | `ZIF_DA_VALUE_CHECK` on `ZCL_DA_VALUE_CHECK` |
+| `NEW zcl_da_variants( table_name = … )` | needs `packages = …` as well, unless the table is the shipped one |
+| Text symbols | Message class `ZDA` |
+
+Copy the rows of `ZDA_VARIANTS` into `ZTDA_VARIANTS` (same structure), then delete the 2.x objects.
+Consumers that only hold `ZIF_DA_VARIANTS` and call `get_variant`, `set_variant`, `map_value` or
+`delete_variant` compile unchanged.
 
 ## Authorization
 
 The framework ships an authorization object that the RAP handlers check on every create, update and delete.
 
-**Authorization field** (SU20, or ADT → New → Other ABAP Repository Object → Authorization Field):
+**Authorization field** (ADT → New → Other ABAP Repository Object → Authorization Field):
 
 | Field | Data element |
 |---|---|
 | `ZDA_PROG` | `ZDE_DA_PROGNAME` |
 
-**Authorization object** (SU21):
+**Authorization object** (ADT → New → Other ABAP Repository Object → Authorization Object):
 
 | Object | Fields | Permitted activities |
 |---|---|---|
@@ -129,13 +160,9 @@ TRY.
       INTO TABLE @DATA(matching_products).
 
   CATCH zcx_da_variants INTO DATA(error).
-    " error->get_text( ) carries the reason
+    " error->get_text( ) carries the reason, error->if_t100_message~t100key the message key
 ENDTRY.
 ```
-
-> **The constructor can fail.** It validates the configuration table name with
-> `cl_abap_dyn_prg=>check_table_name_str`, so it raises `ZCX_DA_VARIANTS` if the table is unknown
-> or lives outside the allowed packages. Wrap it in the same `TRY` as the read.
 
 > **Range types come from the configuration.** The DDIC type of the returned range is taken from the
 > `DataElement` column. Leave it empty to get the native 255 character column type, which converts
@@ -289,8 +316,52 @@ DATA(variants) = CAST zif_da_variants(
                                           packages   = 'ZMY_PACKAGE' ) ).
 ```
 
-The injected table must be **structurally identical** to `ZDA_VARIANTS` and must reside in one of the
-listed packages.
+The injected table must be **structurally identical** to `ZTDA_VARIANTS`. You name the packages it
+may live in; the constructor validates the name with `cl_abap_dyn_prg=>check_table_name_str` and
+raises `ZCX_DA_VARIANTS` when the table is unknown, lives elsewhere, or when no package list is given.
+The shipped table needs no list.
+
+### Testing a consumer
+
+Consumers hold `ZIF_DA_VARIANTS`, so a consumer's unit test never needs the configuration table:
+
+```abap
+DATA(variants) = CAST zif_da_variants( cl_abap_testdouble=>create( 'ZIF_DA_VARIANTS' ) ).
+
+cl_abap_testdouble=>configure_call( variants )->set_parameter( name  = 'field_value'
+                                                               value = '1000' ).
+variants->get_variant( EXPORTING parameter_id = 'DEFAULT_PLANT' IMPORTING field_value = DATA(plant) ).
+
+DATA(cut) = NEW zcl_my_consumer( variants ).
+```
+
+## Architecture
+
+```
+ZIF_DA_VARIANTS ──── ZCL_DA_VARIANTS (facade)
+                        │
+                        ├── ZIF_DA_REPOSITORY ──── ZCL_DA_REPOSITORY      every database access
+                        ├── ZIF_DA_VALUE_CHECK ─── ZCL_DA_VALUE_CHECK     RTTS type checks
+                        ├── ZIF_DA_RULE_MATCHER ── ZCL_DA_RULE_MATCHER    sign / option / bounds
+                        └── ZIF_DA_SYSTEM_CONTEXT  ZCL_DA_SYSTEM_CONTEXT  user and clock
+
+ZR_DA_VARIANTS (RAP root) ── ZBP_R_DA_VARIANTS
+                                │  lcl_variants_factory (composition root, inject_* hooks)
+                                ├── ZIF_DA_AUTHORIZATION ── ZCL_DA_AUTHORIZATION   AUTHORITY-CHECK ZDA_VAR
+                                ├── ZIF_DA_REPOSITORY                             early numbering
+                                └── ZIF_DA_VALUE_CHECK                            validations
+
+ZC_DA_VARIANTS (projection) ── ZUI_DA_VARIANTS ── ZUI_DA_VARIANTS_O4 (OData V4, UI)
+ZCX_DA_VARIANTS ── if_t100_dyn_msg + if_abap_behv_message, message class ZDA
+```
+
+Every collaborator of `ZCL_DA_VARIANTS` is an optional constructor parameter with a production
+default. The behavior pool resolves its collaborators through a local factory, which is what lets the
+RAP tests inject an authorization double instead of depending on the PFCG roles of whoever runs them.
+
+`ZCX_DA_VARIANTS` implements `IF_ABAP_BEHV_MESSAGE`, so one exception object carries a message from
+the value check straight into `reported-%msg` of the Fiori application, with the same number and the
+same variables the API caller would see.
 
 ## The configuration table
 
@@ -307,7 +378,32 @@ listed packages.
 | `MAPPING_DATA_EL` | DDIC type of the mapping value |
 | `DESCRIPTION` | Free text. `set_variant` generates one when it is left empty |
 
-Administrative fields are filled by the RAP framework and by `set_variant`.
+`ZTDA_VARIANTS` has delivery class `C` and restricted data maintenance. Administrative fields are
+filled by the RAP framework and by `set_variant`.
+
+## Messages
+
+All messages come from the message class `ZDA` and are translatable as one unit. The constants of
+`ZCX_DA_VARIANTS` name them, so a caller can react to a specific cause:
+
+```abap
+CATCH zcx_da_variants INTO DATA(error).
+  IF error->if_t100_message~t100key = zcx_da_variants=>no_active_variant.
+    " nothing configured yet, fall back to the default
+  ENDIF.
+```
+
+| Number | Constant | Raised when |
+|---|---|---|
+| 003 | `no_active_variant` | No active row exists for the parameter |
+| 005 / 006 | `invalid_data_element` / `invalid_mapping_element` | A configured type does not exist or is not elementary |
+| 011 / 024 | `table_not_allowed` / `packages_missing` | The injected table is refused |
+| 012 / 014 | `inconsistent_elements` / `inconsistent_mapping_elements` | Rows of one parameter disagree on their type |
+| 013 / 019 | `high_value_missing` / `high_value_not_allowed` | The upper bound does not match the operator |
+| 015 / 016 | `counter_exhausted` / `counter_not_secured` | No free counter |
+| 017 / 018 | `parameter_missing` / `value_missing` | A mandatory field is blank |
+| 020 – 023 | `value_not_convertible`, `value_does_not_fit`, `invalid_date`, `invalid_time` | The value would not survive its type |
+| 001 / 002 / 004 / 009 / 010 | conversion, RTTS, database and write errors | The cause is chained in `previous` |
 
 ## Running the tests
 
@@ -315,19 +411,23 @@ Administrative fields are filled by the RAP framework and by `set_variant`.
 ADT: right click the package -> Run As -> ABAP Unit Test   (Ctrl+Shift+F10)
 ```
 
-123 tests across eleven test classes:
+146 tests across fourteen test classes. None of them touches real data, the real user, the real
+clock or the real authorizations:
 
 | Test class | Covers |
 |---|---|
-| `ltc_variants` | Ranges, value tables, mapping tables, normalisation, validation, the constructor |
-| `ltc_defects` | Regressions for the six defects closed in 2.1.0 |
+| `ltc_variants` | Ranges, value tables, mapping tables, normalisation, validation, stamping, the constructor |
+| `ltc_defects` | Regressions for the defects closed in 2.1.0 |
 | `ltc_value_types` | The type check that runs before a value is written |
 | `ltc_mapping` | `map_value`, every operator, exclusion and rule order |
 | `ltc_delete` | `delete_variant`, single rows and whole parameters |
-| `ltc_exception` | The dynamic message text of `ZCX_DA_VARIANTS` |
+| `ltc_exception` | T100 text, severity, chaining and variable length of `ZCX_DA_VARIANTS` |
+| `ltc_repository` | Active rows, draft counters, bulk counter reads, taken keys, delete counts |
+| `ltc_rule_matcher` | Typed comparison, patterns, `NB`, unknown operators, overflowing input |
 | `ltc_numbering` | Early numbering, pending drafts and the exhausted key range |
 | `ltc_defaults` | The determination that fills `IsActive`, `Sign` and `Opt` |
 | `ltc_validations` | All three save-time validations, triggered through a real save |
+| `ltc_authorizations` | Global and instance authorization through an injected double |
 | `ltc_option_vh` | The options query provider, including the paging contract |
 | `ltc_sign_vh` | The sign query provider, including the paging contract |
 
@@ -345,15 +445,12 @@ The same check runs on every push and pull request through `.github/workflows/ab
 * **The API does not check authorizations.** `ZDA_VAR` protects the Fiori application through the
   behaviour definition and the DCL. `set_variant` and `delete_variant` write directly, so anything
   that can call the class can change configuration.
-* **Messages are text symbols** split over two text pools, so they are not translatable as one unit.
-  The free text a RAP message carries is capped, which is why the wording is kept short.
-* **Direct table access bypasses every validation.** The maintenance flag on `ZDA_VARIANTS` restricts
-  generic maintenance, but a report writing the table directly still gets past every check.
+* **Direct table access bypasses every validation.** Data maintenance on `ZTDA_VARIANTS` is
+  restricted, but a report writing the table directly still gets past every check.
+* **Message variables hold 50 characters.** A cause text longer than that is cut in the message; the
+  full text stays available in `error->previous`.
 
 ## Contributing
 
-Pull requests are welcome. Every pull request must pass the abaplint workflow.
-
-New code follows [Clean ABAP](https://github.com/SAP/styleguides/blob/main/clean-abap/CleanABAP.md):
-no Hungarian prefixes, modern strict Open SQL, ABAP Doc on every public declaration, and an ABAP Unit
-test for every new behaviour.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Every pull request must pass the abaplint workflow and ship
+its ABAP Unit tests.
