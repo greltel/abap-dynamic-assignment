@@ -6,14 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.0.0] — 2026-09-19
+
+Breaking release. See *Upgrading from 2.x* in the README before upgrading.
+
 ### Added
-- GitHub Actions workflow running abaplint on every push and pull request.
+- GitHub Actions workflow running abaplint on every push and pull request,
+  with an extended Clean ABAP rule set.
 - `CONTRIBUTING.md`, issue and pull request templates, `.editorconfig`,
   `.gitattributes`.
-
-## [3.0.0] — planned
-
-Breaking release. See the migration notes in the README before upgrading.
+- `ZIF_DA_REPOSITORY`, `ZIF_DA_VALUE_CHECK`, `ZIF_DA_RULE_MATCHER`,
+  `ZIF_DA_SYSTEM_CONTEXT` and `ZIF_DA_AUTHORIZATION`, each with a production
+  implementation, injected through the constructor of `ZCL_DA_VARIANTS` or the
+  local factory of the behavior pool.
+- Message class `ZDA`; `ZCX_DA_VARIANTS` names every message as a constant and
+  implements `IF_ABAP_BEHV_MESSAGE`, so the same object serves API and RAP.
+- `use etag` on the projection behavior definition.
+- 23 new unit tests (146 in total): authorizations, stamping, exception
+  contract, repository, rule matcher, constructor.
 
 ### Changed
 - **Objects renamed** to the project naming convention: `ZDA_VARIANTS` →
@@ -22,18 +32,23 @@ Breaking release. See the migration notes in the README before upgrading.
   `ZBP_I_DA_VARIANTS` → `ZBP_R_DA_VARIANTS`. Existing configuration rows must
   be copied to the new table.
 - Delivery class of the configuration table is now `C` (customizing).
-- Messages moved from text symbols to the message class `ZDA`; every message
-  now has a stable number and can be translated.
-- `zcl_da_variants` split into a repository, a value checker, a rule matcher
-  and a counter allocator; the public API behind `ZIF_DA_VARIANTS` is unchanged.
-- Installation no longer requires editing `default_packages`.
+- `zcl_da_variants` split into a repository, a value checker and a rule
+  matcher; the public API behind `ZIF_DA_VARIANTS` is unchanged.
+  `check_value` and `data_element_exists` moved to `ZIF_DA_VALUE_CHECK`.
+- Installation no longer requires editing `default_packages`: the shipped
+  table needs no package list, an injected table takes the caller's list.
+- The numbering handler reads the stored counters through the repository in
+  one round trip instead of one `SELECT` per entity.
+- `matches` renamed to avoid shadowing the built-in function.
 
 ### Fixed
 - RAP unit tests no longer depend on the PFCG authorizations, the user or the
   clock of the system they run on.
 - Obsolete `IS REQUESTED` replaced by `IS SUPPLIED`.
 - An unknown data element was reported twice in the Fiori application.
-- `LANGDEP` flag removed from the draft table.
+- The instance authorization handler ignored `requested_authorizations`.
+- Two sided mapping assertions in the tests were split so that a failure
+  names the concept that broke.
 
 ## [2.1.0] — 2026-08-10
 
@@ -97,7 +112,8 @@ Breaking release. See the migration notes in the README before upgrading.
 - ABAP Unit tests on the OSQL Test Double Framework.
 - abaplint configuration for ABAP for Cloud Development.
 
-[Unreleased]: https://github.com/greltel/abap-dynamic-assignment/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/greltel/abap-dynamic-assignment/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/greltel/abap-dynamic-assignment/compare/v2.1.0...v3.0.0
 [2.1.0]: https://github.com/greltel/abap-dynamic-assignment/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/greltel/abap-dynamic-assignment/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/greltel/abap-dynamic-assignment/releases/tag/v1.0.0
