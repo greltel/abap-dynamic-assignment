@@ -42,7 +42,7 @@ CLASS ltc_numbering DEFINITION FINAL
 
     METHODS insert_draft
       IMPORTING parameter_id TYPE ztda_variants-parameterid
-                counter      TYPE ztda_variants-Counter.
+                counter      TYPE ztda_variants-counter.
 
     CLASS-DATA sql_environment TYPE REF TO if_osql_test_environment.
 
@@ -71,7 +71,7 @@ CLASS ltc_numbering DEFINITION FINAL
 
     METHODS insert_variant
       IMPORTING parameter_id TYPE ztda_variants-parameterid
-                counter      TYPE ztda_variants-Counter.
+                counter      TYPE ztda_variants-counter.
 
 ENDCLASS.
 
@@ -104,7 +104,7 @@ CLASS ltc_numbering IMPLEMENTATION.
            WITH VALUE #( ( %cid        = 'C1'
                            progname    = test_program
                            parameterid = test_parameter
-                           Value       = 'A' ) )
+                           value       = 'A' ) )
            MAPPED DATA(mapped)
            FAILED DATA(failed).
 
@@ -129,7 +129,7 @@ CLASS ltc_numbering IMPLEMENTATION.
            WITH VALUE #( ( %cid        = 'C1'
                            progname    = test_program
                            parameterid = test_parameter
-                           Value       = 'B' ) )
+                           value       = 'B' ) )
            MAPPED DATA(mapped).
 
     " then
@@ -146,9 +146,9 @@ CLASS ltc_numbering IMPLEMENTATION.
            WITH VALUE #( progname    = test_program
                          parameterid = test_parameter
                          ( %cid  = 'C1'
-                           Value = 'A' )
+                           value = 'A' )
                          ( %cid  = 'C2'
-                           Value = 'B' ) )
+                           value = 'B' ) )
            MAPPED DATA(mapped)
            FAILED DATA(failed).
 
@@ -173,10 +173,10 @@ CLASS ltc_numbering IMPLEMENTATION.
            WITH VALUE #( progname = test_program
                          ( %cid        = 'C1'
                            parameterid = test_parameter
-                           Value       = 'A' )
+                           value       = 'A' )
                          ( %cid        = 'C2'
                            parameterid = other_parameter
-                           Value       = 'B' ) )
+                           value       = 'B' ) )
            MAPPED DATA(mapped).
 
     " then
@@ -197,7 +197,7 @@ CLASS ltc_numbering IMPLEMENTATION.
            WITH VALUE #( ( %cid        = 'C1'
                            progname    = test_program
                            parameterid = test_parameter
-                           Value       = 'B' ) )
+                           value       = 'B' ) )
            MAPPED DATA(mapped).
 
     " then
@@ -218,7 +218,7 @@ CLASS ltc_numbering IMPLEMENTATION.
            WITH VALUE #( ( %cid        = 'C1'
                            progname    = test_program
                            parameterid = test_parameter
-                           Value       = 'A' ) )
+                           value       = 'A' ) )
            MAPPED DATA(mapped)
            FAILED DATA(failed).
 
@@ -233,7 +233,7 @@ CLASS ltc_numbering IMPLEMENTATION.
   METHOD insert_draft.
     sql_environment->insert_test_data( VALUE ty_drafts( ( progname    = test_program
                                                           parameterid = parameter_id
-                                                          Counter     = counter ) ) ).
+                                                          counter     = counter ) ) ).
   ENDMETHOD.
 
   METHOD insert_variant.

@@ -81,7 +81,7 @@ CLASS ltc_repository IMPLEMENTATION.
     insert_variant( counter = '00001' ).
 
     DATA drafts TYPE STANDARD TABLE OF ztda_variants_d WITH EMPTY KEY.
-    drafts = VALUE #( ( progname = test_program parameterid = test_parameter Counter = '00005' ) ).
+    drafts = VALUE #( ( progname = test_program parameterid = test_parameter counter = '00005' ) ).
     sql_environment->insert_test_data( drafts ).
 
     " when
