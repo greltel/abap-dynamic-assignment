@@ -1,3 +1,4 @@
+// reads through ZR_DA_VARIANTS, whose DCL already filters by ZDA_VAR
 @AccessControl.authorizationCheck: #NOT_REQUIRED
 
 @EndUserText.label: 'Value Help for Parameter ID'
@@ -9,7 +10,7 @@
 @Search.searchable: true
 
 define view entity ZI_DA_PARAMID_VH
-  as select from ZI_DA_VARIANTS
+  as select from ZR_DA_VARIANTS
 {
       @EndUserText.label: 'Program Name'
       @Search.defaultSearchElement: true

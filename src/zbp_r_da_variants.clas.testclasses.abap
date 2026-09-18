@@ -1,23 +1,59 @@
 *"* use this source file for your ABAP unit test classes
 
-"! Covers the early numbering of {@link ZBP_I_DA_VARIANTS}.
+"! Authorization double: allows or denies every activity, as the test decides,
+"! so that no test depends on the PFCG roles of whoever runs it.
+CLASS ltd_authorization DEFINITION FINAL FOR TESTING.
+
+  PUBLIC SECTION.
+
+    INTERFACES zif_da_authorization.
+
+    "! Refuses the activity from now on; every other one stays allowed.
+    "! @parameter activity | Activity to refuse
+    METHODS deny
+      IMPORTING activity TYPE zif_da_authorization=>ty_activity.
+
+  PRIVATE SECTION.
+
+    DATA denied TYPE STANDARD TABLE OF zif_da_authorization=>ty_activity WITH EMPTY KEY.
+
+ENDCLASS.
+
+
+CLASS ltd_authorization IMPLEMENTATION.
+
+  METHOD deny.
+    INSERT activity INTO TABLE denied.
+  ENDMETHOD.
+
+  METHOD zif_da_authorization~is_allowed.
+    result = xsdbool( NOT line_exists( denied[ table_line = activity ] ) ).
+  ENDMETHOD.
+
+  METHOD zif_da_authorization~is_allowed_for.
+    result = zif_da_authorization~is_allowed( activity ).
+  ENDMETHOD.
+
+ENDCLASS.
+
+"! Covers the early numbering of {@link ZBP_R_DA_VARIANTS}.
 CLASS ltc_numbering DEFINITION FINAL FOR TESTING
   RISK LEVEL HARMLESS
   DURATION SHORT.
 
   PRIVATE SECTION.
 
-       TYPES ty_drafts TYPE STANDARD TABLE OF zda_variants_d WITH EMPTY KEY.
+    TYPES ty_drafts TYPE STANDARD TABLE OF ztda_variants_d WITH EMPTY KEY.
 
     METHODS insert_draft
-      IMPORTING parameter_id TYPE zda_variants-parameterid
-                counter      TYPE zda_variants-counter.
+      IMPORTING parameter_id TYPE ztda_variants-parameterid
+                counter      TYPE ztda_variants-counter.
 
     CLASS-DATA sql_environment TYPE REF TO if_osql_test_environment.
 
-    CONSTANTS test_program    TYPE zda_variants-progname    VALUE 'TEST_PROG' ##NO_TEXT.
-    CONSTANTS test_parameter  TYPE zda_variants-parameterid VALUE 'UNIT_TEST' ##NO_TEXT.
-    CONSTANTS other_parameter TYPE zda_variants-parameterid VALUE 'OTHER'     ##NO_TEXT.
+    CONSTANTS test_program    TYPE ztda_variants-progname    VALUE 'TEST_PROG' ##NO_TEXT.
+    CONSTANTS test_parameter  TYPE ztda_variants-parameterid VALUE 'UNIT_TEST' ##NO_TEXT.
+    CONSTANTS other_parameter TYPE ztda_variants-parameterid VALUE 'OTHER'     ##NO_TEXT.
 
     CLASS-METHODS class_setup.
     CLASS-METHODS class_teardown.
@@ -38,8 +74,8 @@ CLASS ltc_numbering DEFINITION FINAL FOR TESTING
     METHODS given_counter_full_then_fail FOR TESTING RAISING cx_static_check.
 
     METHODS insert_variant
-      IMPORTING parameter_id TYPE zda_variants-parameterid
-                counter      TYPE zda_variants-counter.
+      IMPORTING parameter_id TYPE ztda_variants-parameterid
+                counter      TYPE ztda_variants-counter.
 
 ENDCLASS.
 
@@ -48,8 +84,8 @@ CLASS ltc_numbering IMPLEMENTATION.
 
   METHOD class_setup.
     sql_environment = cl_osql_test_environment=>create(
-                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
-                                                       ( 'ZDA_VARIANTS_D' ) ) ).
+                          i_dependency_list = VALUE #( ( 'ZTDA_VARIANTS' )
+                                                       ( 'ZTDA_VARIANTS_D' ) ) ).
   ENDMETHOD.
 
   METHOD class_teardown.
@@ -58,23 +94,25 @@ CLASS ltc_numbering IMPLEMENTATION.
 
   METHOD setup.
     sql_environment->clear_doubles( ).
+    lcl_variants_factory=>inject_authorization( NEW ltd_authorization( ) ).
   ENDMETHOD.
 
   METHOD teardown.
     ROLLBACK ENTITIES.
+    lcl_variants_factory=>inject_authorization( VALUE #( ) ).
   ENDMETHOD.
 
 
   METHOD given_empty_then_counter_one.
 
     " when
-    MODIFY ENTITIES OF zi_da_variants
-      ENTITY Variants
-      CREATE FIELDS ( Progname Parameterid Value )
+    MODIFY ENTITIES OF zr_da_variants
+      ENTITY variants
+      CREATE FIELDS ( progname parameterid value )
       WITH VALUE #( ( %cid        = 'C1'
-                      Progname    = test_program
-                      Parameterid = test_parameter
-                      Value       = 'A' ) )
+                      progname    = test_program
+                      parameterid = test_parameter
+                      value       = 'A' ) )
       MAPPED DATA(mapped)
       FAILED DATA(failed).
 
@@ -85,7 +123,7 @@ CLASS ltc_numbering IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
         exp = '00001'
-        act = mapped-variants[ %cid = 'C1' ]-Counter
+        act = mapped-variants[ %cid = 'C1' ]-counter
         msg = 'The first variant of a parameter must get counter 00001' ).
 
   ENDMETHOD.
@@ -97,19 +135,19 @@ CLASS ltc_numbering IMPLEMENTATION.
     insert_variant( parameter_id = test_parameter counter = '00007' ).
 
     " when
-    MODIFY ENTITIES OF zi_da_variants
-      ENTITY Variants
-      CREATE FIELDS ( Progname Parameterid Value )
+    MODIFY ENTITIES OF zr_da_variants
+      ENTITY variants
+      CREATE FIELDS ( progname parameterid value )
       WITH VALUE #( ( %cid        = 'C1'
-                      Progname    = test_program
-                      Parameterid = test_parameter
-                      Value       = 'B' ) )
+                      progname    = test_program
+                      parameterid = test_parameter
+                      value       = 'B' ) )
       MAPPED DATA(mapped).
 
     " then
     cl_abap_unit_assert=>assert_equals(
         exp = '00008'
-        act = mapped-variants[ %cid = 'C1' ]-Counter
+        act = mapped-variants[ %cid = 'C1' ]-counter
         msg = 'Numbering must continue after the highest stored counter' ).
 
   ENDMETHOD.
@@ -118,17 +156,17 @@ CLASS ltc_numbering IMPLEMENTATION.
   METHOD given_two_new_then_uniq_ctr.
 
     " when - two entities for the same key inside one request
-    MODIFY ENTITIES OF zi_da_variants
-      ENTITY Variants
-      CREATE FIELDS ( Progname Parameterid Value )
+    MODIFY ENTITIES OF zr_da_variants
+      ENTITY variants
+      CREATE FIELDS ( progname parameterid value )
       WITH VALUE #( ( %cid        = 'C1'
-                      Progname    = test_program
-                      Parameterid = test_parameter
-                      Value       = 'A' )
+                      progname    = test_program
+                      parameterid = test_parameter
+                      value       = 'A' )
                     ( %cid        = 'C2'
-                      Progname    = test_program
-                      Parameterid = test_parameter
-                      Value       = 'B' ) )
+                      progname    = test_program
+                      parameterid = test_parameter
+                      value       = 'B' ) )
       MAPPED DATA(mapped)
       FAILED DATA(failed).
 
@@ -138,8 +176,8 @@ CLASS ltc_numbering IMPLEMENTATION.
         msg = 'Creating two variants for one key must not fail' ).
 
     cl_abap_unit_assert=>assert_differs(
-        exp = mapped-variants[ %cid = 'C1' ]-Counter
-        act = mapped-variants[ %cid = 'C2' ]-Counter
+        exp = mapped-variants[ %cid = 'C1' ]-counter
+        act = mapped-variants[ %cid = 'C2' ]-counter
         msg = 'Each entity of one request must get its own counter' ).
 
   ENDMETHOD.
@@ -151,47 +189,47 @@ CLASS ltc_numbering IMPLEMENTATION.
     insert_variant( parameter_id = test_parameter counter = '00042' ).
 
     " when
-    MODIFY ENTITIES OF zi_da_variants
-      ENTITY Variants
-      CREATE FIELDS ( Progname Parameterid Value )
+    MODIFY ENTITIES OF zr_da_variants
+      ENTITY variants
+      CREATE FIELDS ( progname parameterid value )
       WITH VALUE #( ( %cid        = 'C1'
-                      Progname    = test_program
-                      Parameterid = test_parameter
-                      Value       = 'A' )
+                      progname    = test_program
+                      parameterid = test_parameter
+                      value       = 'A' )
                     ( %cid        = 'C2'
-                      Progname    = test_program
-                      Parameterid = other_parameter
-                      Value       = 'B' ) )
+                      progname    = test_program
+                      parameterid = other_parameter
+                      value       = 'B' ) )
       MAPPED DATA(mapped).
 
     " then
     cl_abap_unit_assert=>assert_equals(
         exp = '00001'
-        act = mapped-variants[ %cid = 'C2' ]-Counter
+        act = mapped-variants[ %cid = 'C2' ]-counter
         msg = 'An untouched parameter must start its own sequence at 00001' ).
 
   ENDMETHOD.
 
 
-    METHOD given_draft_then_next_ctr.
+  METHOD given_draft_then_next_ctr.
 
     " given - a draft that occupies counter 00001 but was never activated
     insert_draft( parameter_id = test_parameter counter = '00001' ).
 
     " when
-    MODIFY ENTITIES OF zi_da_variants
-      ENTITY Variants
-      CREATE FIELDS ( Progname Parameterid Value )
+    MODIFY ENTITIES OF zr_da_variants
+      ENTITY variants
+      CREATE FIELDS ( progname parameterid value )
       WITH VALUE #( ( %cid        = 'C1'
-                      Progname    = test_program
-                      Parameterid = test_parameter
-                      Value       = 'B' ) )
+                      progname    = test_program
+                      parameterid = test_parameter
+                      value       = 'B' ) )
       MAPPED DATA(mapped).
 
     " then
     cl_abap_unit_assert=>assert_equals(
         exp = '00002'
-        act = mapped-variants[ %cid = 'C1' ]-Counter
+        act = mapped-variants[ %cid = 'C1' ]-counter
         msg = 'A pending draft must not hand its counter to the next variant' ).
 
   ENDMETHOD.
@@ -203,13 +241,13 @@ CLASS ltc_numbering IMPLEMENTATION.
     insert_variant( parameter_id = test_parameter counter = '99999' ).
 
     " when
-    MODIFY ENTITIES OF zi_da_variants
-      ENTITY Variants
-      CREATE FIELDS ( Progname Parameterid Value )
+    MODIFY ENTITIES OF zr_da_variants
+      ENTITY variants
+      CREATE FIELDS ( progname parameterid value )
       WITH VALUE #( ( %cid        = 'C1'
-                      Progname    = test_program
-                      Parameterid = test_parameter
-                      Value       = 'A' ) )
+                      progname    = test_program
+                      parameterid = test_parameter
+                      value       = 'A' ) )
       MAPPED DATA(mapped)
       FAILED DATA(failed).
 
@@ -260,8 +298,8 @@ CLASS ltc_defaults DEFINITION FINAL FOR TESTING
 
     CLASS-DATA sql_environment TYPE REF TO if_osql_test_environment.
 
-    CONSTANTS test_program   TYPE zda_variants-progname    VALUE 'TEST_PROG' ##NO_TEXT.
-    CONSTANTS test_parameter TYPE zda_variants-parameterid VALUE 'UNIT_TEST' ##NO_TEXT.
+    CONSTANTS test_program   TYPE ztda_variants-progname    VALUE 'TEST_PROG' ##NO_TEXT.
+    CONSTANTS test_parameter TYPE ztda_variants-parameterid VALUE 'UNIT_TEST' ##NO_TEXT.
 
     CLASS-METHODS class_setup.
     CLASS-METHODS class_teardown.
@@ -282,7 +320,7 @@ CLASS ltc_defaults DEFINITION FINAL FOR TESTING
     METHODS create_variant
       IMPORTING sign          TYPE zde_da_sign OPTIONAL
                 option        TYPE zde_da_opt  OPTIONAL
-      RETURNING VALUE(result) TYPE zi_da_variants.
+      RETURNING VALUE(result) TYPE zr_da_variants.
 
 ENDCLASS.
 
@@ -291,8 +329,8 @@ CLASS ltc_defaults IMPLEMENTATION.
 
   METHOD class_setup.
     sql_environment = cl_osql_test_environment=>create(
-                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
-                                                       ( 'ZDA_VARIANTS_D' ) ) ).
+                          i_dependency_list = VALUE #( ( 'ZTDA_VARIANTS' )
+                                                       ( 'ZTDA_VARIANTS_D' ) ) ).
   ENDMETHOD.
 
   METHOD class_teardown.
@@ -301,10 +339,12 @@ CLASS ltc_defaults IMPLEMENTATION.
 
   METHOD setup.
     sql_environment->clear_doubles( ).
+    lcl_variants_factory=>inject_authorization( NEW ltd_authorization( ) ).
   ENDMETHOD.
 
   METHOD teardown.
     ROLLBACK ENTITIES.
+    lcl_variants_factory=>inject_authorization( VALUE #( ) ).
   ENDMETHOD.
 
 
@@ -312,7 +352,7 @@ CLASS ltc_defaults IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
         exp = abap_true
-        act = create_variant( )-IsActive
+        act = create_variant( )-isactive
         msg = 'A new variant must be active without user interaction' ).
 
   ENDMETHOD.
@@ -322,7 +362,7 @@ CLASS ltc_defaults IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
         exp = 'I'
-        act = create_variant( )-Sign
+        act = create_variant( )-sign
         msg = 'A new variant must default to sign include' ).
 
   ENDMETHOD.
@@ -332,7 +372,7 @@ CLASS ltc_defaults IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
         exp = 'EQ'
-        act = create_variant( )-Opt
+        act = create_variant( )-opt
         msg = 'A new variant must default to option equal' ).
 
   ENDMETHOD.
@@ -342,7 +382,7 @@ CLASS ltc_defaults IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
         exp = 'E'
-        act = create_variant( sign = 'E' )-Sign
+        act = create_variant( sign = 'E' )-sign
         msg = 'A sign supplied by the user must not be overwritten' ).
 
   ENDMETHOD.
@@ -352,7 +392,7 @@ CLASS ltc_defaults IMPLEMENTATION.
 
     cl_abap_unit_assert=>assert_equals(
         exp = 'NE'
-        act = create_variant( option = 'NE' )-Opt
+        act = create_variant( option = 'NE' )-opt
         msg = 'An option supplied by the user must not be overwritten' ).
 
   ENDMETHOD.
@@ -360,20 +400,20 @@ CLASS ltc_defaults IMPLEMENTATION.
 
   METHOD create_variant.
 
-    MODIFY ENTITIES OF zi_da_variants
-      ENTITY Variants
-      CREATE FIELDS ( Progname Parameterid Value Sign Opt )
+    MODIFY ENTITIES OF zr_da_variants
+      ENTITY variants
+      CREATE FIELDS ( progname parameterid value sign opt )
       WITH VALUE #( ( %cid        = 'C1'
-                      Progname    = test_program
-                      Parameterid = test_parameter
-                      Value       = 'A'
-                      Sign        = sign
-                      Opt         = option ) )
+                      progname    = test_program
+                      parameterid = test_parameter
+                      value       = 'A'
+                      sign        = sign
+                      opt         = option ) )
       MAPPED DATA(mapped).
 
-    READ ENTITIES OF zi_da_variants
-      ENTITY Variants
-      FIELDS ( Progname Parameterid Counter IsActive Sign Opt )
+    READ ENTITIES OF zr_da_variants
+      ENTITY variants
+      FIELDS ( progname parameterid counter isactive sign opt )
       WITH VALUE #( ( %tky = mapped-variants[ 1 ]-%tky ) )
       RESULT DATA(variants).
 
@@ -395,11 +435,11 @@ CLASS ltc_validations DEFINITION FINAL FOR TESTING
     CLASS-DATA sql_environment TYPE REF TO if_osql_test_environment.
     DATA       next_id         TYPE i.
 
-    CONSTANTS test_program  TYPE zda_variants-progname       VALUE 'TEST_PROG'    ##NO_TEXT.
-    CONSTANTS elementary_el TYPE zda_variants-data_element   VALUE 'ZDE_DA_SIGN'  ##NO_TEXT.
-    CONSTANTS structured_el TYPE zda_variants-data_element   VALUE 'ZDA_VARIANTS' ##NO_TEXT.
-    CONSTANTS unknown_el    TYPE zda_variants-data_element   VALUE 'ZDE_NO_SUCH'  ##NO_TEXT.
-    CONSTANTS numeric_el    TYPE zda_variants-data_element   VALUE 'ZDE_DA_COUNTER' ##NO_TEXT.
+    CONSTANTS test_program  TYPE ztda_variants-progname       VALUE 'TEST_PROG'    ##NO_TEXT.
+    CONSTANTS elementary_el TYPE ztda_variants-data_element   VALUE 'ZDE_DA_SIGN'  ##NO_TEXT.
+    CONSTANTS structured_el TYPE ztda_variants-data_element   VALUE 'ZTDA_VARIANTS' ##NO_TEXT.
+    CONSTANTS unknown_el    TYPE ztda_variants-data_element   VALUE 'ZDE_NO_SUCH'  ##NO_TEXT.
+    CONSTANTS numeric_el    TYPE ztda_variants-data_element   VALUE 'ZDE_DA_COUNTER' ##NO_TEXT.
 
     CLASS-METHODS class_setup.
     CLASS-METHODS class_teardown.
@@ -438,12 +478,12 @@ CLASS ltc_validations DEFINITION FINAL FOR TESTING
     METHODS given_fitting_value_then_ok  FOR TESTING RAISING cx_static_check.
 
     METHODS save_variant
-      IMPORTING value           TYPE zda_variants-value           DEFAULT 'A'
-                high_value      TYPE zda_variants-high_value      OPTIONAL
+      IMPORTING value           TYPE ztda_variants-value           DEFAULT 'A'
+                high_value      TYPE ztda_variants-high_value      OPTIONAL
                 option          TYPE zde_da_opt                   DEFAULT 'EQ'
-                data_element    TYPE zda_variants-data_element    OPTIONAL
-                mapping_value   TYPE zda_variants-mapping_value   OPTIONAL
-                mapping_data_el TYPE zda_variants-mapping_data_el OPTIONAL
+                data_element    TYPE ztda_variants-data_element    OPTIONAL
+                mapping_value   TYPE ztda_variants-mapping_value   OPTIONAL
+                mapping_data_el TYPE ztda_variants-mapping_data_el OPTIONAL
       EXPORTING has_failure     TYPE abap_boolean
                 has_message     TYPE abap_boolean.
 
@@ -454,8 +494,8 @@ CLASS ltc_validations IMPLEMENTATION.
 
   METHOD class_setup.
     sql_environment = cl_osql_test_environment=>create(
-                          i_dependency_list = VALUE #( ( 'ZDA_VARIANTS' )
-                                                       ( 'ZDA_VARIANTS_D' ) ) ).
+                          i_dependency_list = VALUE #( ( 'ZTDA_VARIANTS' )
+                                                       ( 'ZTDA_VARIANTS_D' ) ) ).
   ENDMETHOD.
 
   METHOD class_teardown.
@@ -464,10 +504,12 @@ CLASS ltc_validations IMPLEMENTATION.
 
   METHOD setup.
     sql_environment->clear_doubles( ).
+    lcl_variants_factory=>inject_authorization( NEW ltd_authorization( ) ).
   ENDMETHOD.
 
   METHOD teardown.
     ROLLBACK ENTITIES.
+    lcl_variants_factory=>inject_authorization( VALUE #( ) ).
   ENDMETHOD.
 
 
@@ -664,24 +706,24 @@ CLASS ltc_validations IMPLEMENTATION.
 
     " every call uses its own parameter so that the tests never share a key
     next_id += 1.
-    DATA(parameter) = CONV zda_variants-parameterid( |UNIT_TEST_{ next_id }| ).
+    DATA(parameter) = CONV ztda_variants-parameterid( |UNIT_TEST_{ next_id }| ).
 
-    MODIFY ENTITIES OF zi_da_variants
-      ENTITY Variants
-      CREATE FIELDS ( Progname Parameterid Value Opt HighValue
-                      DataElement MappingValue MappingDataElement )
+    MODIFY ENTITIES OF zr_da_variants
+      ENTITY variants
+      CREATE FIELDS ( progname parameterid value opt highvalue
+                      dataelement mappingvalue mappingdataelement )
       WITH VALUE #( ( %cid               = 'C1'
-                      Progname           = test_program
-                      Parameterid        = parameter
-                      Value              = value
-                      Opt                = option
-                      HighValue          = high_value
-                      DataElement        = data_element
-                      MappingValue       = mapping_value
-                      MappingDataElement = mapping_data_el ) ).
+                      progname           = test_program
+                      parameterid        = parameter
+                      value              = value
+                      opt                = option
+                      highvalue          = high_value
+                      dataelement        = data_element
+                      mappingvalue       = mapping_value
+                      mappingdataelement = mapping_data_el ) ).
 
     " on save validations only run during the save sequence
-    COMMIT ENTITIES RESPONSE OF zi_da_variants
+    COMMIT ENTITIES RESPONSE OF zr_da_variants
       FAILED DATA(failed)
       REPORTED DATA(reported).
 
@@ -692,6 +734,162 @@ CLASS ltc_validations IMPLEMENTATION.
         has_message = abap_true.
       ENDIF.
     ENDLOOP.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+
+"! Covers the global and instance authorization handlers.
+"! <p>The handlers ask {@link ZIF_DA_AUTHORIZATION} through the local factory,
+"! so the double decides what is allowed and the tests run identically for
+"! every user.</p>
+CLASS ltc_authorizations DEFINITION FINAL FOR TESTING
+  RISK LEVEL HARMLESS
+  DURATION SHORT.
+
+  PRIVATE SECTION.
+
+    CLASS-DATA sql_environment TYPE REF TO if_osql_test_environment.
+
+    DATA authorization TYPE REF TO ltd_authorization.
+
+    CONSTANTS test_program   TYPE ztda_variants-progname    VALUE 'TEST_PROG' ##NO_TEXT.
+    CONSTANTS test_parameter TYPE ztda_variants-parameterid VALUE 'UNIT_TEST' ##NO_TEXT.
+    CONSTANTS stored_counter TYPE ztda_variants-counter     VALUE '00001'     ##NO_TEXT.
+
+    CLASS-METHODS class_setup.
+    CLASS-METHODS class_teardown.
+    METHODS setup.
+    METHODS teardown.
+
+    "! Without create authorization the create request must fail as unauthorized.
+    METHODS given_no_create_auth_then_fail FOR TESTING RAISING cx_static_check.
+    "! With create authorization the create request must go through.
+    METHODS given_create_auth_then_ok      FOR TESTING RAISING cx_static_check.
+    "! Without change authorization an update of a stored row must fail.
+    METHODS given_no_change_auth_then_fail FOR TESTING RAISING cx_static_check.
+    "! With change authorization an update of a stored row must go through.
+    METHODS given_change_auth_then_ok      FOR TESTING RAISING cx_static_check.
+
+    METHODS create_variant
+      RETURNING VALUE(result) LIKE if_abap_behv=>cause-unauthorized.
+
+    METHODS update_stored_variant
+      RETURNING VALUE(result) LIKE if_abap_behv=>cause-unauthorized.
+
+ENDCLASS.
+
+
+CLASS ltc_authorizations IMPLEMENTATION.
+
+  METHOD class_setup.
+    sql_environment = cl_osql_test_environment=>create(
+                          i_dependency_list = VALUE #( ( 'ZTDA_VARIANTS' )
+                                                       ( 'ZTDA_VARIANTS_D' ) ) ).
+  ENDMETHOD.
+
+  METHOD class_teardown.
+    sql_environment->destroy( ).
+  ENDMETHOD.
+
+  METHOD setup.
+    sql_environment->clear_doubles( ).
+    authorization = NEW ltd_authorization( ).
+    lcl_variants_factory=>inject_authorization( authorization ).
+  ENDMETHOD.
+
+  METHOD teardown.
+    ROLLBACK ENTITIES.
+    lcl_variants_factory=>inject_authorization( VALUE #( ) ).
+  ENDMETHOD.
+
+
+  METHOD given_no_create_auth_then_fail.
+
+    " given
+    authorization->deny( zif_da_authorization=>activity-create ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = if_abap_behv=>cause-unauthorized
+        act = create_variant( )
+        msg = `A create without authorization must fail as unauthorized` ).
+
+  ENDMETHOD.
+
+
+  METHOD given_create_auth_then_ok.
+
+    cl_abap_unit_assert=>assert_initial(
+        act = create_variant( )
+        msg = `A create with authorization must not fail` ).
+
+  ENDMETHOD.
+
+
+  METHOD given_no_change_auth_then_fail.
+
+    " given
+    authorization->deny( zif_da_authorization=>activity-change ).
+
+    " then
+    cl_abap_unit_assert=>assert_equals(
+        exp = if_abap_behv=>cause-unauthorized
+        act = update_stored_variant( )
+        msg = `An update without change authorization must fail as unauthorized` ).
+
+  ENDMETHOD.
+
+
+  METHOD given_change_auth_then_ok.
+
+    cl_abap_unit_assert=>assert_initial(
+        act = update_stored_variant( )
+        msg = `An update with change authorization must not fail` ).
+
+  ENDMETHOD.
+
+
+  METHOD create_variant.
+
+    MODIFY ENTITIES OF zr_da_variants
+      ENTITY variants
+      CREATE FIELDS ( progname parameterid value )
+      WITH VALUE #( ( %cid        = 'C1'
+                      progname    = test_program
+                      parameterid = test_parameter
+                      value       = 'A' ) )
+      FAILED DATA(failed).
+
+    " initial when nothing failed, otherwise the cause of the first failure
+    result = VALUE #( failed-variants[ 1 ]-%fail-cause OPTIONAL ).
+
+  ENDMETHOD.
+
+
+  METHOD update_stored_variant.
+
+    sql_environment->insert_test_data( VALUE zcl_da_variants=>ty_variants(
+      ( progname    = test_program
+        parameterid = test_parameter
+        counter     = stored_counter
+        is_active   = abap_true
+        sign        = 'I'
+        opt         = 'EQ'
+        value       = 'X' ) ) ).
+
+    MODIFY ENTITIES OF zr_da_variants
+      ENTITY variants
+      UPDATE FIELDS ( description )
+      WITH VALUE #( ( %is_draft   = if_abap_behv=>mk-off
+                      progname    = test_program
+                      parameterid = test_parameter
+                      counter     = stored_counter
+                      description = 'changed' ) )
+      FAILED DATA(failed).
+
+    result = VALUE #( failed-variants[ 1 ]-%fail-cause OPTIONAL ).
 
   ENDMETHOD.
 

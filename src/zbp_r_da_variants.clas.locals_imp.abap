@@ -1,4 +1,3 @@
-"! ZBP_R_DA_VARIANTS - Local Types
 "! Composition root of the behavior pool. The framework instantiates the
 "! handler without arguments, so the handler asks this factory for its
 "! collaborators; a test swaps them through the inject_* hooks.

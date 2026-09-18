@@ -2073,9 +2073,14 @@ CLASS ltc_mapping IMPLEMENTATION.
 
     " then
     cl_abap_unit_assert=>assert_equals(
-        exp = |X{ 'MID' }|
-        act = |{ matched }{ mapped }|
-        msg = 'BT must compare in the DDIC type, not on the stored string' ).
+        exp = abap_true
+        act = matched
+        msg = `BT must compare in the DDIC type, not on the stored string` ).
+
+    cl_abap_unit_assert=>assert_equals(
+        exp = 'MID'
+        act = mapped
+        msg = `BT must compare in the DDIC type, not on the stored string` ).
 
   ENDMETHOD.
 
@@ -2122,9 +2127,14 @@ CLASS ltc_mapping IMPLEMENTATION.
 
     " then
     cl_abap_unit_assert=>assert_equals(
-        exp = |X{ 'LARGE' }|
-        act = |{ matched }{ mapped }|
-        msg = 'GE must answer for everything from its bound upwards' ).
+        exp = abap_true
+        act = matched
+        msg = `GE must answer for everything from its bound upwards` ).
+
+    cl_abap_unit_assert=>assert_equals(
+        exp = 'LARGE'
+        act = mapped
+        msg = `GE must answer for everything from its bound upwards` ).
 
   ENDMETHOD.
 
@@ -2146,9 +2156,14 @@ CLASS ltc_mapping IMPLEMENTATION.
 
     " then
     cl_abap_unit_assert=>assert_equals(
-        exp = |X{ 'CUSTOMER' }|
-        act = |{ matched }{ mapped }|
-        msg = 'A CP rule must match character wise, wildcards included' ).
+        exp = abap_true
+        act = matched
+        msg = `A CP rule must match character wise, wildcards included` ).
+
+    cl_abap_unit_assert=>assert_equals(
+        exp = 'CUSTOMER'
+        act = mapped
+        msg = `A CP rule must match character wise, wildcards included` ).
 
   ENDMETHOD.
 
@@ -2210,9 +2225,14 @@ CLASS ltc_mapping IMPLEMENTATION.
 
     " then
     cl_abap_unit_assert=>assert_equals(
-        exp = |X{ 'NORTH' }|
-        act = |{ matched }{ mapped }|
-        msg = 'The hole must not swallow the rest of the range' ).
+        exp = abap_true
+        act = matched
+        msg = `The hole must not swallow the rest of the range` ).
+
+    cl_abap_unit_assert=>assert_equals(
+        exp = 'NORTH'
+        act = mapped
+        msg = `The hole must not swallow the rest of the range` ).
 
   ENDMETHOD.
 

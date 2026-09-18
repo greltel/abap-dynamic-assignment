@@ -1,4 +1,3 @@
-"! ZBP_R_DA_VARIANTS
 "! <p class="shorttext synchronized" lang="EN">Behavior implementation for Variants</p>
 "! Behavior pool of {@link ZR_DA_VARIANTS}. The handler lives in the local
 "! types; its collaborators are resolved through the local factory so that
