@@ -14,8 +14,6 @@ CLASS zcl_da_variants DEFINITION
 
     INTERFACES zif_da_variants.
 
-    ALIASES ty_base_sign   FOR zif_da_variants~ty_base_sign.
-    ALIASES ty_base_opt    FOR zif_da_variants~ty_base_opt.
     ALIASES ty_sign        FOR zif_da_variants~ty_sign.
     ALIASES ty_opt         FOR zif_da_variants~ty_opt.
     ALIASES ty_progname    FOR zif_da_variants~ty_progname.
@@ -28,11 +26,9 @@ CLASS zcl_da_variants DEFINITION
     ALIASES ty_variant     FOR zif_da_variants~ty_variant.
     ALIASES ty_variants    FOR zif_da_variants~ty_variants.
 
-    ALIASES sign_empty   FOR zif_da_variants~sign_empty.
     ALIASES sign_include FOR zif_da_variants~sign_include.
     ALIASES sign_exclude FOR zif_da_variants~sign_exclude.
 
-    ALIASES opt_empty FOR zif_da_variants~opt_empty.
     ALIASES opt_eq    FOR zif_da_variants~opt_eq.
     ALIASES opt_ne    FOR zif_da_variants~opt_ne.
     ALIASES opt_bt    FOR zif_da_variants~opt_bt.
@@ -81,9 +77,6 @@ CLASS zcl_da_variants DEFINITION
     "! Times an append retries after another LUW took the allocated counter.
     CONSTANTS max_attempts TYPE i VALUE 5.
 
-    " variant-sign carries the base type of the enumeration, see the rule matcher
-    CONSTANTS base_exclude TYPE ty_base_sign VALUE 'E' ##NO_TEXT.
-
     CONSTANTS component_sign   TYPE string VALUE `SIGN`          ##NO_TEXT.
     CONSTANTS component_option TYPE string VALUE `OPTION`        ##NO_TEXT.
     CONSTANTS component_low    TYPE string VALUE `LOW`           ##NO_TEXT.
@@ -120,6 +113,13 @@ CLASS zcl_da_variants DEFINITION
     METHODS check_type_consistency
       IMPORTING variants TYPE ty_variants
       RAISING   zcx_da_variants.
+
+    "! Returns the data elements without duplicates, in alphabetical order.
+    "! @parameter elements | Data elements as they appear on the rows
+    "! @parameter result   | Each data element once
+    METHODS distinct
+      IMPORTING elements      TYPE ty_data_elements
+      RETURNING VALUE(result) TYPE ty_data_elements.
 
     "! Returns the rows that actually carry a mapping value.
     "! @parameter variants | Active variants, ordered by counter
@@ -367,8 +367,8 @@ CLASS zcl_da_variants IMPLEMENTATION.
         parameterid     = parameter
         counter         = counter
         is_active       = is_active
-        sign            = CONV ty_base_sign( variant_sign )
-        opt             = CONV ty_base_opt( variant_option )
+        sign            = variant_sign
+        opt             = variant_option
         value           = field_value
         high_value      = high_value
         data_element    = element
@@ -417,7 +417,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
       ENDIF.
 
       " the first rule that answers decides, whether it includes or excludes
-      IF variant-sign = base_exclude.
+      IF variant-sign = sign_exclude.
         RETURN.
       ENDIF.
 
@@ -477,9 +477,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   METHOD check_type_consistency.
 
-    DATA(elements) = VALUE ty_data_elements( FOR GROUPS element OF variant IN variants
-                                             GROUP BY variant-data_element
-                                             ( element ) ).
+    DATA(elements) = distinct( VALUE ty_data_elements( FOR variant IN variants ( variant-data_element ) ) ).
 
     IF lines( elements ) > 1.
       RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>inconsistent_elements
@@ -490,16 +488,23 @@ CLASS zcl_da_variants IMPLEMENTATION.
     " only rows that map something take part, a row without a mapping value has no type
     DATA(mapping_rows) = mapping_variants( variants ).
 
-    DATA(mapping_elements) = VALUE ty_data_elements(
-                                 FOR GROUPS mapping_element OF mapping_row IN mapping_rows
-                                 GROUP BY mapping_row-mapping_data_el
-                                 ( mapping_element ) ).
+    DATA(mapping_elements) = distinct( VALUE ty_data_elements( FOR mapping_row IN mapping_rows
+                                                                ( mapping_row-mapping_data_el ) ) ).
 
     IF lines( mapping_elements ) > 1.
       RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>inconsistent_mapping_elements
                                            msgv1  = variants[ 1 ]-parameterid
                                            msgv2  = concat_lines_of( table = mapping_elements sep = `, ` ) ).
     ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD distinct.
+
+    result = elements.
+    SORT result.
+    DELETE ADJACENT DUPLICATES FROM result.
 
   ENDMETHOD.
 
@@ -741,13 +746,13 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
     IF takes_high_value = abap_true AND high_value IS INITIAL.
       RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>high_value_missing
-                                           msgv1  = CONV ty_base_opt( option ) ).
+                                           msgv1  = option ).
     ENDIF.
 
     " the Fiori application rejects this too, an upper bound has no meaning here
     IF takes_high_value = abap_false AND high_value IS NOT INITIAL.
       RAISE EXCEPTION NEW zcx_da_variants( textid = zcx_da_variants=>high_value_not_allowed
-                                           msgv1  = CONV ty_base_opt( option ) ).
+                                           msgv1  = option ).
     ENDIF.
 
   ENDMETHOD.
@@ -804,4 +809,3 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
 
 ENDCLASS.
-

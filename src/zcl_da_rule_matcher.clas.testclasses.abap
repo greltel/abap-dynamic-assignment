@@ -30,7 +30,7 @@ CLASS ltc_rule_matcher DEFINITION FINAL FOR TESTING
     METHODS given_bad_input_then_error    FOR TESTING RAISING cx_static_check.
 
     METHODS rule
-      IMPORTING option        TYPE zif_da_variants=>ty_base_opt
+      IMPORTING option        TYPE zif_da_variants=>ty_opt
                 low           TYPE zif_da_variants=>ty_value
                 high          TYPE zif_da_variants=>ty_value    OPTIONAL
                 data_element  TYPE zif_da_variants=>ty_data_el OPTIONAL

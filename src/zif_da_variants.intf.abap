@@ -8,32 +8,26 @@
 INTERFACE zif_da_variants
   PUBLIC.
 
-  TYPES ty_base_sign TYPE zde_da_sign.
-  TYPES ty_base_opt  TYPE zde_da_opt.
+  "! Sign of a range line, as the configuration table stores it.
+  TYPES ty_sign TYPE zde_da_sign.
+  "! Comparison operator of a range line, as the configuration table stores it.
+  TYPES ty_opt  TYPE zde_da_opt.
 
-  TYPES:
-    "! Sign of a range line. Pass these constants instead of literals.
-    BEGIN OF ENUM ty_sign BASE TYPE ty_base_sign,
-      sign_empty   VALUE IS INITIAL ##NEEDED,
-      sign_include VALUE 'I' ##NEEDED,
-      sign_exclude VALUE 'E' ##NEEDED,
-    END OF ENUM ty_sign.
+  "! Signs of a range line. Pass these constants instead of literals.
+  CONSTANTS sign_include TYPE ty_sign VALUE 'I' ##NO_TEXT.
+  CONSTANTS sign_exclude TYPE ty_sign VALUE 'E' ##NO_TEXT.
 
-  TYPES:
-    "! Comparison operator of a range line. Pass these constants instead of literals.
-    BEGIN OF ENUM ty_opt BASE TYPE ty_base_opt,
-      opt_empty VALUE IS INITIAL ##NEEDED,
-      opt_eq    VALUE 'EQ' ##NEEDED,
-      opt_ne    VALUE 'NE' ##NEEDED,
-      opt_bt    VALUE 'BT' ##NEEDED,
-      opt_nb    VALUE 'NB' ##NEEDED,
-      opt_cp    VALUE 'CP' ##NEEDED,
-      opt_np    VALUE 'NP' ##NEEDED,
-      opt_lt    VALUE 'LT' ##NEEDED,
-      opt_le    VALUE 'LE' ##NEEDED,
-      opt_gt    VALUE 'GT' ##NEEDED,
-      opt_ge    VALUE 'GE' ##NEEDED,
-    END OF ENUM ty_opt.
+  "! Comparison operators of a range line. Pass these constants instead of literals.
+  CONSTANTS opt_eq TYPE ty_opt VALUE 'EQ' ##NO_TEXT.
+  CONSTANTS opt_ne TYPE ty_opt VALUE 'NE' ##NO_TEXT.
+  CONSTANTS opt_bt TYPE ty_opt VALUE 'BT' ##NO_TEXT.
+  CONSTANTS opt_nb TYPE ty_opt VALUE 'NB' ##NO_TEXT.
+  CONSTANTS opt_cp TYPE ty_opt VALUE 'CP' ##NO_TEXT.
+  CONSTANTS opt_np TYPE ty_opt VALUE 'NP' ##NO_TEXT.
+  CONSTANTS opt_lt TYPE ty_opt VALUE 'LT' ##NO_TEXT.
+  CONSTANTS opt_le TYPE ty_opt VALUE 'LE' ##NO_TEXT.
+  CONSTANTS opt_gt TYPE ty_opt VALUE 'GT' ##NO_TEXT.
+  CONSTANTS opt_ge TYPE ty_opt VALUE 'GE' ##NO_TEXT.
 
   TYPES:
     "! Program scope of a variant.

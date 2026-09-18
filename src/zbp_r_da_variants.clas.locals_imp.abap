@@ -107,11 +107,6 @@ CLASS lhc_variants DEFINITION INHERITING FROM cl_abap_behavior_handler.
 
     TYPES ty_value_checks TYPE STANDARD TABLE OF ty_value_check WITH EMPTY KEY.
 
-    CONSTANTS option_between     TYPE zde_da_opt  VALUE 'BT' ##NO_TEXT.
-    CONSTANTS option_not_between TYPE zde_da_opt  VALUE 'NB' ##NO_TEXT.
-    CONSTANTS option_equal       TYPE zde_da_opt  VALUE 'EQ' ##NO_TEXT.
-    CONSTANTS sign_include       TYPE zde_da_sign VALUE 'I'  ##NO_TEXT.
-
     CONSTANTS state_area_elements TYPE string VALUE `VALIDATE_DATA_ELEMENTS` ##NO_TEXT.
     CONSTANTS state_area_range    TYPE string VALUE `VALIDATE_RANGE`         ##NO_TEXT.
     CONSTANTS state_area_values   TYPE string VALUE `VALIDATE_VALUE_TYPES`   ##NO_TEXT.
@@ -283,9 +278,9 @@ CLASS lhc_variants IMPLEMENTATION.
           isactive = COND #( WHEN variant-isactive IS INITIAL
                              THEN abap_true ELSE variant-isactive )
           sign     = COND #( WHEN variant-sign IS INITIAL
-                             THEN sign_include ELSE variant-sign )
+                             THEN zif_da_variants=>sign_include ELSE variant-sign )
           opt      = COND #( WHEN variant-opt IS INITIAL
-                             THEN option_equal ELSE variant-opt ) ) ).
+                             THEN zif_da_variants=>opt_eq ELSE variant-opt ) ) ).
 
     IF defaults IS INITIAL.
       RETURN.
@@ -360,8 +355,8 @@ CLASS lhc_variants IMPLEMENTATION.
       INSERT VALUE #( %tky        = variant-%tky
                       %state_area = state_area_range ) INTO TABLE reported-variants.
 
-      DATA(needs_high_value) = xsdbool( variant-opt = option_between
-                                     OR variant-opt = option_not_between ).
+      DATA(needs_high_value) = xsdbool( variant-opt = zif_da_variants=>opt_bt
+                                     OR variant-opt = zif_da_variants=>opt_nb ).
 
       IF needs_high_value = abap_true AND variant-highvalue IS INITIAL.
         INSERT VALUE #( %tky = variant-%tky ) INTO TABLE failed-variants.

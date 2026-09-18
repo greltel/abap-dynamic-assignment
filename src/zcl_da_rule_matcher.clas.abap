@@ -17,19 +17,6 @@ CLASS zcl_da_rule_matcher DEFINITION
 
   PRIVATE SECTION.
 
-    " variant-opt carries the base type of the enumeration, and an enumerated value
-    " can only be compared with its own enumerated type, so the operators are
-    " declared once in the base type here
-    CONSTANTS base_eq TYPE zif_da_variants=>ty_base_opt VALUE 'EQ' ##NO_TEXT.
-    CONSTANTS base_ne TYPE zif_da_variants=>ty_base_opt VALUE 'NE' ##NO_TEXT.
-    CONSTANTS base_bt TYPE zif_da_variants=>ty_base_opt VALUE 'BT' ##NO_TEXT.
-    CONSTANTS base_nb TYPE zif_da_variants=>ty_base_opt VALUE 'NB' ##NO_TEXT.
-    CONSTANTS base_cp TYPE zif_da_variants=>ty_base_opt VALUE 'CP' ##NO_TEXT.
-    CONSTANTS base_np TYPE zif_da_variants=>ty_base_opt VALUE 'NP' ##NO_TEXT.
-    CONSTANTS base_lt TYPE zif_da_variants=>ty_base_opt VALUE 'LT' ##NO_TEXT.
-    CONSTANTS base_le TYPE zif_da_variants=>ty_base_opt VALUE 'LE' ##NO_TEXT.
-    CONSTANTS base_gt TYPE zif_da_variants=>ty_base_opt VALUE 'GT' ##NO_TEXT.
-    CONSTANTS base_ge TYPE zif_da_variants=>ty_base_opt VALUE 'GE' ##NO_TEXT.
 
     DATA value_check TYPE REF TO zif_da_value_check.
 
@@ -78,12 +65,12 @@ CLASS zcl_da_rule_matcher IMPLEMENTATION.
   METHOD zif_da_rule_matcher~accepts.
 
     " a pattern is character matching and stays on the stored strings
-    IF variant-opt = base_cp.
+    IF variant-opt = zif_da_variants=>opt_cp.
       result = xsdbool( input CP variant-value ).
       RETURN.
     ENDIF.
 
-    IF variant-opt = base_np.
+    IF variant-opt = zif_da_variants=>opt_np.
       result = xsdbool( input NP variant-value ).
       RETURN.
     ENDIF.
@@ -97,7 +84,7 @@ CLASS zcl_da_rule_matcher IMPLEMENTATION.
 
   METHOD accepts_typed.
 
-    IF variant-opt = base_bt OR variant-opt = base_nb.
+    IF variant-opt = zif_da_variants=>opt_bt OR variant-opt = zif_da_variants=>opt_nb.
       result = accepts_bounds( variant = variant
                                input   = input
                                element = element ).
@@ -116,17 +103,17 @@ CLASS zcl_da_rule_matcher IMPLEMENTATION.
     ASSIGN typed_low->*   TO FIELD-SYMBOL(<low>).
 
     CASE variant-opt.
-      WHEN base_eq.
+      WHEN zif_da_variants=>opt_eq.
         result = xsdbool( <input> =  <low> ).
-      WHEN base_ne.
+      WHEN zif_da_variants=>opt_ne.
         result = xsdbool( <input> <> <low> ).
-      WHEN base_lt.
+      WHEN zif_da_variants=>opt_lt.
         result = xsdbool( <input> <  <low> ).
-      WHEN base_le.
+      WHEN zif_da_variants=>opt_le.
         result = xsdbool( <input> <= <low> ).
-      WHEN base_gt.
+      WHEN zif_da_variants=>opt_gt.
         result = xsdbool( <input> >  <low> ).
-      WHEN base_ge.
+      WHEN zif_da_variants=>opt_ge.
         result = xsdbool( <input> >= <low> ).
       WHEN OTHERS.
         result = abap_false.
@@ -155,7 +142,7 @@ CLASS zcl_da_rule_matcher IMPLEMENTATION.
 
     DATA(inside) = xsdbool( <input> >= <low> AND <input> <= <high> ).
 
-    result = COND #( WHEN variant-opt = base_nb
+    result = COND #( WHEN variant-opt = zif_da_variants=>opt_nb
                      THEN xsdbool( inside = abap_false )
                      ELSE inside ).
 

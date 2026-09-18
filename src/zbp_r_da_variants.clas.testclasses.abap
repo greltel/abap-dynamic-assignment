@@ -339,9 +339,9 @@ CLASS ltc_defaults IMPLEMENTATION.
            WITH VALUE #( ( %cid        = 'C1'
                            progname    = test_program
                            parameterid = test_parameter
-                           Value       = 'A'
-                           Sign        = sign
-                           Opt         = option ) )
+                           value       = 'A'
+                           sign        = sign
+                           opt         = option ) )
            MAPPED DATA(mapped).
 
     READ ENTITIES OF zr_da_variants
@@ -694,7 +694,7 @@ CLASS ltc_authorizations IMPLEMENTATION.
            WITH VALUE #( ( %cid        = 'C1'
                            progname    = test_program
                            parameterid = test_parameter
-                           Value       = 'A' ) )
+                           value       = 'A' ) )
            FAILED DATA(failed).
 
     " initial when nothing failed, otherwise the cause of the first failure
@@ -711,7 +711,7 @@ CLASS ltc_authorizations IMPLEMENTATION.
                            %is_draft   = if_abap_behv=>mk-on
                            progname    = test_program
                            parameterid = test_parameter
-                           Value       = 'X' ) )
+                           value       = 'X' ) )
            MAPPED DATA(mapped).
 
     MODIFY ENTITIES OF zr_da_variants

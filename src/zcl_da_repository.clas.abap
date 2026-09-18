@@ -128,6 +128,7 @@ CLASS zcl_da_repository IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD zif_da_repository~read_last_counters.
 
     DATA active_counters TYPE zif_da_repository=>ty_counter_keys.
@@ -137,13 +138,12 @@ CLASS zcl_da_repository IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    DATA(programs)   = VALUE ty_program_range( FOR GROUPS program OF key IN keys
-                                               GROUP BY key-progname
-                                               ( sign = range_include option = range_equal low = program ) ).
+    " a duplicate key arrives as a duplicate range line, which changes nothing
+    DATA(programs)   = VALUE ty_program_range( FOR key IN keys
+                                               ( sign = range_include option = range_equal low = key-progname ) ).
 
-    DATA(parameters) = VALUE ty_parameter_range( FOR GROUPS parameter OF key IN keys
-                                                 GROUP BY key-parameterid
-                                                 ( sign = range_include option = range_equal low = parameter ) ).
+    DATA(parameters) = VALUE ty_parameter_range( FOR key IN keys
+                                                 ( sign = range_include option = range_equal low = key-parameterid ) ).
 
     TRY.
         " a dynamic FROM rules out inline declarations, hence the typed tables above
