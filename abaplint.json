@@ -220,7 +220,7 @@
     "prefix_is_current_class": true,
     "reduce_string_templates": true,
     "remove_descriptions": false,
-    "select_single_full_key": true,
+    "select_single_full_key": false,
     "sequential_blank": {
       "lines": 4
     },
