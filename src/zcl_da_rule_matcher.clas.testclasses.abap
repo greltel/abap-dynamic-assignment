@@ -12,6 +12,7 @@ CLASS ltc_rule_matcher DEFINITION FINAL FOR TESTING
     DATA value_check TYPE REF TO zif_da_value_check.
 
     CONSTANTS numeric_element TYPE zif_da_variants=>ty_data_el VALUE 'ZDE_DA_COUNTER' ##NO_TEXT.
+    CONSTANTS integer_element TYPE zif_da_variants=>ty_data_el VALUE 'INT4' ##NO_TEXT.
 
     METHODS setup.
 
@@ -108,12 +109,13 @@ CLASS ltc_rule_matcher IMPLEMENTATION.
 
   METHOD given_bad_input_then_error.
 
-    DATA(variant) = rule( option = 'EQ' low = '1' data_element = 'ZDE_DA_SIGN' ).
+    " a CHAR target would truncate in silence, an integer target refuses the text
+    DATA(variant) = rule( option = 'EQ' low = '1' data_element = integer_element ).
 
     TRY.
-        cut->accepts( variant = variant input = 'TOO LONG FOR A SIGN' element = element_of( variant ) ).
+        cut->accepts( variant = variant input = 'ABC' element = element_of( variant ) ).
 
-        cl_abap_unit_assert=>fail( msg = `An input that overflows its type must be reported` ).
+        cl_abap_unit_assert=>fail( msg = `An input its type cannot convert must be reported` ).
 
       CATCH zcx_da_variants.
         " then - expected
