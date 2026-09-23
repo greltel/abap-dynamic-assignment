@@ -48,37 +48,25 @@
         "object": "ZCL_DA_VARIANTS",
         "class": "LTC_VARIANTS",
         "method": "GIVEN_MAP_EL_THEN_TYPED",
-        "note": "open-abap RTTS has no get_component_type on structures built with cl_abap_structdescr=>create; runs in ADT"
+        "note": "transpiler emits CONV #( ) into a TYPE any parameter as Character(4), truncating the component name; abaplint must infer the argument type for CONV # in a generic operand position (transpiler PR #1880 was reverted for that reason); remove once abaplint ships the inference fix"
       },
       {
         "object": "ZCL_DA_VARIANTS",
         "class": "LTC_VARIANTS",
         "method": "GIVEN_DATA_EL_THEN_TYPED",
-        "note": "open-abap RTTS has no get_component_type on structures built with cl_abap_structdescr=>create; runs in ADT"
-      },
-      {
-        "object": "ZCL_DA_VARIANTS",
-        "class": "LTC_VARIANTS",
-        "method": "GIVEN_BAD_TABLE_THEN_ERROR",
-        "note": "open-abap has no repository, cl_abap_dyn_prg=>check_table_name_str accepts every name; runs in ADT"
+        "note": "transpiler emits CONV #( ) into a TYPE any parameter as Character(4), truncating the component name; abaplint must infer the argument type for CONV # in a generic operand position (transpiler PR #1880 was reverted for that reason); remove once abaplint ships the inference fix"
       },
       {
         "object": "ZCL_DA_VARIANTS",
         "class": "LTC_VARIANTS",
         "method": "GIVEN_FOREIGN_PACK_THEN_ERROR",
-        "note": "open-abap has no repository, cl_abap_dyn_prg=>check_table_name_str accepts every name; runs in ADT"
+        "note": "package check is not possible off-stack: an abapGit repository does not carry its root package name and TADIR is populated with $TMP; runs in ADT"
       },
       {
         "object": "ZCL_DA_VARIANTS",
         "class": "LTC_DEFECTS",
         "method": "GIVEN_LATE_MAP_EL_THEN_TYPED",
-        "note": "open-abap RTTS has no get_component_type on structures built with cl_abap_structdescr=>create; runs in ADT"
-      },
-      {
-        "object": "ZCL_DA_VARIANTS",
-        "class": "LTC_VALUE_TYPES",
-        "method": "GIVEN_VALID_DATE_THEN_KEPT",
-        "note": "data element DATUM is not part of the open-abap DDIC; runs in ADT"
+        "note": "transpiler emits CONV #( ) into a TYPE any parameter as Character(4), truncating the component name; abaplint must infer the argument type for CONV # in a generic operand position (transpiler PR #1880 was reverted for that reason); remove once abaplint ships the inference fix"
       }
     ]
   }
