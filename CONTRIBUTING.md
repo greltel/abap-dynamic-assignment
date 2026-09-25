@@ -34,21 +34,24 @@ style comments.
    Clean ABAP profile) before staging.
 4. Run the tests: right-click the package → *Run As* → *ABAP Unit Test*.
    Everything must be green.
-5. Run abaplint locally — the same check runs on every pull request:
+5. Run the off-stack gate locally — the same two jobs run on every pull
+   request (Node 22, see `.nvmrc`):
 
    ```bash
-   npm install -g @abaplint/cli
-   abaplint
+   npm ci
+   npm run check   # abaplint + transpiled ABAP Unit tests
    ```
 
-   Zero findings is the merge bar.
+   Zero abaplint findings and a green test run are the merge bar. Do not
+   install `@abaplint/cli` globally; the pinned version in `package-lock.json`
+   is the one CI uses.
 6. Stage with abapGit, push, open the pull request. Describe *what* changed
    and *why*; link the issue if there is one.
 7. Add an entry under **Unreleased** in `CHANGELOG.md`.
 
 ## What a pull request needs
 
-- Green abaplint workflow.
+- Green CI workflow: abaplint and the transpiled unit tests.
 - Unit tests for the change, green in ADT (paste the ABAP Unit result in the
   PR description).
 - ABAP Doc for anything public that was added or changed.
