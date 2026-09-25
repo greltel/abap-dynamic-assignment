@@ -5,7 +5,7 @@
 > **Open Source Contribution:** This project is community-driven and **Open Source**! 🚀
 > If you spot a bug or have an idea for an enhancement, open an **Issue** or submit a **Pull Request**.
 
-[![abaplint](https://github.com/greltel/abap-dynamic-assignment/actions/workflows/abaplint.yml/badge.svg)](https://github.com/greltel/abap-dynamic-assignment/actions/workflows/abaplint.yml)
+[![CI](https://github.com/greltel/abap-dynamic-assignment/actions/workflows/ci.yml/badge.svg)](https://github.com/greltel/abap-dynamic-assignment/actions/workflows/ci.yml)
 [![ABAP Cloud](https://img.shields.io/badge/ABAP-Cloud%20Ready-green)](https://abaplint.app/stats/greltel/abap-dynamic-assignment/object_classifications)
 [![ABAP Version](https://img.shields.io/badge/ABAP-7.58%2B-blue)](https://abaplint.app/stats/greltel/abap-dynamic-assignment/statement_compatibility)
 [![Code Statistics](https://img.shields.io/badge/CodeStatistics-abaplint-blue)](https://abaplint.app/stats/greltel/abap-dynamic-assignment)
@@ -57,11 +57,13 @@ The repository was created by [George Drakos](https://www.linkedin.com/in/george
   constructor, so consumers mock the framework and the framework mocks the system. No test depends on
   the user, the clock, the PFCG roles or the data of the system it runs on.
 * **Unit Tested:** 146 ABAP Unit tests across fourteen test classes, on the OSQL Test Double
-  Framework and `cl_abap_testdouble`.
+  Framework and `cl_abap_testdouble`. The same tests run off-stack on every push and pull request,
+  transpiled to JavaScript by the [abaplint transpiler](https://github.com/abaplint/transpiler)
+  against an in-memory SQLite database — no ABAP system needed for CI.
 * **Fiori Elements App** built with RAP: validations, defaults, draft handling, optimistic locking and
   authorization checks.
 * **Clean:** abaplint with an extended Clean ABAP rule set runs on every push and pull request.
-  Zero findings is the merge bar.
+  Zero findings and a green test run are the merge bar.
 
 ## Prerequisites
 
@@ -431,14 +433,18 @@ clock or the real authorizations:
 | `ltc_option_vh` | The options query provider, including the paging contract |
 | `ltc_sign_vh` | The sign query provider, including the paging contract |
 
-Static checks, locally or in CI:
+Static checks and the transpiled unit tests, locally or in CI (Node 22, see `.nvmrc`):
 
 ```bash
-npm install -g @abaplint/cli
-abaplint
+npm ci          # pinned @abaplint toolchain from package-lock.json
+npm run lint    # abaplint, zero findings expected
+npm test        # transpile src/ to JavaScript and run the ABAP Unit tests off-stack
+npm run check   # both
 ```
 
-The same check runs on every push and pull request through `.github/workflows/abaplint.yml`.
+The same two jobs run on every push and pull request through `.github/workflows/ci.yml`.
+A handful of tests need the real system (package check, `CONV #` into a generic parameter) and
+run only in ADT; they are listed with a reason under `options.skip` in `abap_transpile.json`.
 
 ## Known limitations
 
@@ -452,5 +458,5 @@ The same check runs on every push and pull request through `.github/workflows/ab
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Every pull request must pass the abaplint workflow and ship
-its ABAP Unit tests.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Every pull request must pass the CI workflow (abaplint and
+the transpiled unit tests) and ship its ABAP Unit tests.
