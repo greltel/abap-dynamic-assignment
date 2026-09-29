@@ -503,7 +503,7 @@ CLASS zcl_da_variants IMPLEMENTATION.
   METHOD distinct.
 
     result = elements.
-    SORT result by table_line.
+    SORT result BY table_line.
     DELETE ADJACENT DUPLICATES FROM result.
 
   ENDMETHOD.
