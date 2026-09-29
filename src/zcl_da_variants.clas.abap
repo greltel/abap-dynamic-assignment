@@ -502,9 +502,11 @@ CLASS zcl_da_variants IMPLEMENTATION.
 
   METHOD distinct.
 
+    " ty_data_elements has an empty primary key: SORT without BY and DELETE ADJACENT
+    " DUPLICATES without COMPARING would both be no-ops, so compare the line explicitly
     result = elements.
     SORT result BY table_line.
-    DELETE ADJACENT DUPLICATES FROM result.
+    DELETE ADJACENT DUPLICATES FROM result COMPARING ALL FIELDS.
 
   ENDMETHOD.
 
