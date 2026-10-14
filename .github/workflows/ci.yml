@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   lint:
-    name: abaplint
+    name: abaplint(static analysis)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -35,7 +35,7 @@ jobs:
         run: npm run lint
 
   test:
-    name: ABAP Unit (transpiled)
+    name: Transpile and run ABAP Unit
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
